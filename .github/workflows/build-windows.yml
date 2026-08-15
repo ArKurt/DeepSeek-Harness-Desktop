@@ -1,0 +1,97 @@
+name: Build Windows
+
+on:
+  push:
+    paths:
+      - 'windows/**'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Publish app (win-x64)
+        shell: pwsh
+        run: |
+          cd windows
+          dotnet publish -c Release -o publish
+          if (-not (Test-Path "publish/DeepSeek.exe")) { throw "publish failed: DeepSeek.exe not found" }
+
+      - name: Download Node.js for Windows x64
+        shell: pwsh
+        run: |
+          $nodeVersion = 'v24.19.0'
+          $url = "https://nodejs.org/dist/$nodeVersion/node-$nodeVersion-win-x64.zip"
+          Invoke-WebRequest $url -OutFile node.zip
+          Expand-Archive node.zip -DestinationPath node-extract
+          if (-not (Test-Path "node-extract/node-$nodeVersion-win-x64/node.exe")) { throw "node.exe not found" }
+
+      - name: Install dsh bundle (Windows native modules)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bundle | Out-Null
+          Set-Location bundle
+          npm init -y
+          npm install @deepseek-ai/dsh@^0.1.0-rc.6
+          if (-not (Test-Path "node_modules/@deepseek-ai/dsh/lib/bin.js")) { throw "dsh bundle install failed" }
+
+      - name: Assemble runtime into publish
+        shell: pwsh
+        run: |
+          $nodeVersion = 'v24.19.0'
+          $publish = 'windows/publish'
+          New-Item -ItemType Directory -Force -Path "$publish/runtime" | Out-Null
+          Copy-Item "node-extract/node-$nodeVersion-win-x64/node.exe" "$publish/runtime/node.exe"
+          Copy-Item bundle "$publish/runtime/bundle" -Recurse
+          Copy-Item windows/assets/whale.png "$publish/whale.png" -Force
+          if (-not (Test-Path "$publish/runtime/bundle/node_modules/@deepseek-ai/dsh/lib/bin.js")) { throw "runtime assembly failed" }
+
+      - name: Smoke test server boot (node + dsh)
+        shell: pwsh
+        run: |
+          # 直接验证内置运行时能启动 dsh web（端口 3099）
+          $env:DSH_DESKTOP_PORT = '3099'
+          $env:DSH_HOME = "$env:TEMP\dsh-smoke"
+          $proc = Start-Process -FilePath "windows/publish/runtime/node.exe" -ArgumentList @(
+            "windows/publish/runtime/bundle/node_modules/@deepseek-ai/dsh/lib/bin.js",
+            "web", "--port", "3099"
+          ) -PassThru -WindowStyle Hidden
+          try {
+            $ok = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              Start-Sleep -Seconds 1
+              try {
+                $r = Invoke-WebRequest -Uri "http://127.0.0.1:3099/" -UseBasicParsing -TimeoutSec 2
+                if ($r.StatusCode -eq 200) { $ok = $true; break }
+              } catch { }
+            }
+            if (-not $ok) { throw "server did not become ready" }
+            Write-Host "SMOKE TEST PASSED: server served HTTP 200"
+          } finally {
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+          }
+
+      - name: Zip distribution
+        shell: pwsh
+        run: |
+          Compress-Archive -Path windows/publish/* -DestinationPath DeepSeek-Windows.zip -Force
+          Get-Item DeepSeek-Windows.zip | Select-Object Name, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeepSeek-Windows
+          path: DeepSeek-Windows.zip

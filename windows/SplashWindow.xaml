@@ -1,0 +1,54 @@
+<Window x:Class="DeepSeekDesktop.SplashWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="DeepSeek"
+        Width="760" Height="420"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Background="White"
+        ShowInTaskbar="False"
+        AllowsTransparency="True">
+    <Grid Background="White">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+
+            <!-- 鲸鱼 + 两行标题（横向 logo 布局） -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <Image x:Name="WhaleImage"
+                       Source="assets/whale.png"
+                       Width="88" Height="65"
+                       Margin="0,0,18,0"
+                       Opacity="0"
+                       RenderTransformOrigin="0.5,1">
+                    <Image.RenderTransform>
+                        <ScaleTransform x:Name="WhaleScale" ScaleX="0.92" ScaleY="0.92"/>
+                    </Image.RenderTransform>
+                </Image>
+
+                <StackPanel VerticalAlignment="Center">
+                    <!-- 第一行：DeepSeek Harness -->
+                    <StackPanel x:Name="Line1Panel" Orientation="Horizontal"/>
+                    <!-- 第二行：for Mac -->
+                    <StackPanel x:Name="Line2Panel" Orientation="Horizontal" Margin="2,6,0,0"/>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- 作者名 -->
+            <StackPanel x:Name="AuthorPanel"
+                        HorizontalAlignment="Center"
+                        Margin="0,26,0,0"
+                        Opacity="0">
+                <TextBlock Text="by Condex"
+                           FontSize="18" FontWeight="Medium"
+                           Foreground="#B3000000"
+                           HorizontalAlignment="Center"/>
+                <TextBlock x:Name="SubtitleText"
+                           Text="正在唤醒本地服务…"
+                           FontSize="13"
+                           Foreground="#99000000"
+                           HorizontalAlignment="Center"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -41,3 +41,8 @@ Node 运行时拉起本地服务器（默认端口 3080），并用原生 WebVie
 ```
 
 需要 Xcode 命令行工具 + Node（构建时用本机 node 二进制捆绑进 App）。
+
+## Windows 版
+
+`windows/` 目录包含 Windows 版（C# WPF + WebView2），效果与 Mac 版一致（启动动画、内置运行时、防篡改）。
+GitHub Actions（`.github/workflows/build-windows.yml`）会在 Windows 上自动构建并产出 `DeepSeek-Windows.zip`。

@@ -11,3 +11,7 @@ Sources/Integrity.generated.swift
 # 测试临时文件
 Tests/test-server
 build.log
+# Windows 构建产物
+windows/bin/
+windows/obj/
+windows/publish/
