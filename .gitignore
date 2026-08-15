@@ -1,0 +1,13 @@
+# 构建产物
+build/
+*.dmg
+
+# macOS
+.DS_Store
+
+# 构建时自动生成的完整性常量（build.sh 每次生成）
+Sources/Integrity.generated.swift
+
+# 测试临时文件
+Tests/test-server
+build.log
