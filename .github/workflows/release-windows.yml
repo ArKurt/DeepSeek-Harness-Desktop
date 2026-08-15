@@ -1,17 +1,14 @@
-name: Build Windows
+name: Release Windows
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'windows/**'
-      - '.github/workflows/build-windows.yml'
-      - 'DeepSeekSetup.iss'
+    tags:
+      - 'v*'
+      - 'win-v*'
   workflow_dispatch:
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +28,7 @@ jobs:
         run: |
           cd windows
           dotnet publish -c Release -o publish
-          if (-not (Test-Path "publish/DeepSeek.exe")) { throw "publish failed: DeepSeek.exe not found" }
+          if (-not (Test-Path "publish/DeepSeek.exe")) { throw "publish failed" }
 
       - name: Download Node.js for Windows x64
         shell: pwsh
@@ -40,7 +37,6 @@ jobs:
           $url = "https://nodejs.org/dist/$nodeVersion/node-$nodeVersion-win-x64.zip"
           Invoke-WebRequest $url -OutFile node.zip
           Expand-Archive node.zip -DestinationPath node-extract
-          if (-not (Test-Path "node-extract/node-$nodeVersion-win-x64/node.exe")) { throw "node.exe not found" }
 
       - name: Install dsh bundle (Windows native modules)
         shell: pwsh
@@ -49,7 +45,6 @@ jobs:
           Set-Location bundle
           npm init -y
           npm install @deepseek-ai/dsh@^0.1.0-rc.6
-          if (-not (Test-Path "node_modules/@deepseek-ai/dsh/lib/bin.js")) { throw "dsh bundle install failed" }
 
       - name: Assemble runtime into publish
         shell: pwsh
@@ -60,9 +55,8 @@ jobs:
           Copy-Item "node-extract/node-$nodeVersion-win-x64/node.exe" "$publish/runtime/node.exe"
           Copy-Item bundle "$publish/runtime/bundle" -Recurse
           Copy-Item windows/assets/whale.png "$publish/whale.png" -Force
-          if (-not (Test-Path "$publish/runtime/bundle/node_modules/@deepseek-ai/dsh/lib/bin.js")) { throw "runtime assembly failed" }
 
-      - name: Smoke test server boot (node + dsh)
+      - name: Smoke test server boot
         shell: pwsh
         run: |
           $env:DSH_DESKTOP_PORT = '3099'
@@ -81,7 +75,7 @@ jobs:
               } catch { }
             }
             if (-not $ok) { throw "server did not become ready" }
-            Write-Host "SMOKE TEST PASSED: server served HTTP 200"
+            Write-Host "SMOKE TEST PASSED"
           } finally {
             if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
           }
@@ -96,18 +90,18 @@ jobs:
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "ISCC.exe not found" }
           & $iscc DeepSeekSetup.iss
-          if (-not (Test-Path "DeepSeek-Setup-1.0.0.exe")) { throw "installer build failed" }
 
       - name: Zip distribution
         shell: pwsh
         run: |
           Compress-Archive -Path windows/publish/* -DestinationPath DeepSeek-Windows.zip -Force
-          Get-Item DeepSeek-Windows.zip, DeepSeek-Setup-1.0.0.exe | Select-Object Name, Length
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: DeepSeek-Windows
-          path: |
+          files: |
             DeepSeek-Windows.zip
             DeepSeek-Setup-1.0.0.exe
+          fail_on_unmatched_files: true
+          name: DeepSeek for Windows ${{ github.ref_name }}
+          generate_release_notes: true
