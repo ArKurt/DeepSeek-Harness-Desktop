@@ -2,9 +2,15 @@ name: Build Windows
 
 on:
   push:
-    paths:
-      - 'windows/**'
-      - '.github/workflows/build-windows.yml'
+    - branches:
+        - main
+      paths:
+        - 'windows/**'
+        - '.github/workflows/build-windows.yml'
+        - 'DeepSeekSetup.iss'
+    - tags:
+        - 'v*'
+        - 'win-v*'
   workflow_dispatch:
 
 jobs:
@@ -62,7 +68,6 @@ jobs:
       - name: Smoke test server boot (node + dsh)
         shell: pwsh
         run: |
-          # 直接验证内置运行时能启动 dsh web（端口 3099）
           $env:DSH_DESKTOP_PORT = '3099'
           $env:DSH_HOME = "$env:TEMP\dsh-smoke"
           $proc = Start-Process -FilePath "windows/publish/runtime/node.exe" -ArgumentList @(
@@ -84,14 +89,38 @@ jobs:
             if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
           }
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found" }
+          & $iscc DeepSeekSetup.iss
+          if (-not (Test-Path "DeepSeek-Setup-1.0.0.exe")) { throw "installer build failed" }
+
       - name: Zip distribution
         shell: pwsh
         run: |
           Compress-Archive -Path windows/publish/* -DestinationPath DeepSeek-Windows.zip -Force
-          Get-Item DeepSeek-Windows.zip | Select-Object Name, Length
+          Get-Item DeepSeek-Windows.zip, DeepSeek-Setup-1.0.0.exe | Select-Object Name, Length
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: DeepSeek-Windows
-          path: DeepSeek-Windows.zip
+          path: |
+            DeepSeek-Windows.zip
+            DeepSeek-Setup-1.0.0.exe
+
+      - name: Publish release (tag only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            DeepSeek-Windows.zip
+            DeepSeek-Setup-1.0.0.exe
+          fail_on_unmatched_files: true
+          name: DeepSeek for Windows ${{ github.ref_name }}
