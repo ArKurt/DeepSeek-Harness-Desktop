@@ -1,0 +1,100 @@
+name: Update release notes
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/update-release-notes.yml'
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Inspect current releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/releases --paginate > /tmp/releases.json
+          jq -r '.[] | [.tag_name, (.draft|tostring), (.name // "")] | @tsv' /tmp/releases.json
+
+      - name: Delete leftover draft releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for id in $(jq -r '.[] | select(.draft) | .id' /tmp/releases.json); do
+            gh api -X DELETE "repos/${{ github.repository }}/releases/$id"
+          done
+
+      - name: Write release notes
+        run: |
+          cat > /tmp/mac-v1.0.1.md <<'EOF'
+          ## DeepSeek Desktop for macOS v1.0.1
+
+          ### 更新内容
+          - 修复：ServerManager 在后台线程发布 @Published 状态，导致 SwiftUI 在非主线程创建 WKWebView 并崩溃（服务器启动慢/失败或安装插件后更容易触发）。
+          - 修复：SplashView 启动动画移除逐字 @State 数组，改用单布尔状态 + 逐字延迟动画，消除 SwiftUI ForEach 崩溃隐患。
+          - 改进：去掉 Application Support 目录解析的强制解包。
+          - 版本号更新为 1.0.1。
+
+          ### 下载
+          - DeepSeek-1.0.1.dmg
+          EOF
+
+          cat > /tmp/mac-v1.0.0.md <<'EOF'
+          ## DeepSeek Desktop for macOS v1.0.0
+
+          首个 macOS 桌面发行版。
+
+          - SwiftUI + WKWebView 承载 DeepSeek Harness Web UI
+          - 内置 Node.js 运行时与 dsh 包，双击即用
+          - 鲸鱼启动动画
+          - 启动时 SHA256 防篡改自校验
+          - 与命令行 dsh 共用 ~/.dsh 数据目录
+          EOF
+
+          cat > /tmp/win-v1.0.1.md <<'EOF'
+          ## DeepSeek for Windows v1.0.1
+
+          ### 更新内容
+          - 版本号与 macOS 版对齐到 1.0.1。
+          - 修正 Windows 安装包文件名为 DeepSeek-Setup-1.0.1.exe。
+          - 发布流程拆分：win-v* 标签触发 Windows 发布，mac-v* 标签触发 macOS 发布。
+
+          ### 下载
+          - DeepSeek-Setup-1.0.1.exe
+          - DeepSeek-Windows.zip
+          EOF
+
+          cat > /tmp/win-v1.0.0.md <<'EOF'
+          ## DeepSeek for Windows v1.0.0
+
+          首个 Windows 桌面发行版。
+
+          - C# WPF + WebView2 承载 DeepSeek Harness Web UI
+          - 内置 Node.js 运行时与 dsh 包
+          - 启动动画、服务器生命周期管理
+          - 安装包：DeepSeek-Setup-1.0.0.exe / DeepSeek-Windows.zip
+          EOF
+
+      - name: Publish or edit intended releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          upsert() {
+            local tag="$1"
+            local title="$2"
+            local file="$3"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release edit "$tag" --title "$title" --notes-file "$file"
+            else
+              gh release create "$tag" --title "$title" --notes-file "$file"
+            fi
+          }
+          upsert mac-v1.0.1 "DeepSeek Desktop for Mac v1.0.1" /tmp/mac-v1.0.1.md
+          upsert win-v1.0.1 "DeepSeek for Windows v1.0.1" /tmp/win-v1.0.1.md
+          upsert mac-v1.0.0 "DeepSeek Desktop for Mac v1.0.0" /tmp/mac-v1.0.0.md
+          upsert win-v1.0.0 "DeepSeek for Windows v1.0.0" /tmp/win-v1.0.0.md
