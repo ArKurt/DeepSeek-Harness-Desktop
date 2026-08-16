@@ -143,7 +143,8 @@ if [ "$DO_RUNTIME" = "1" ]; then
     "@deepseek-ai/dsh": "$DSH_VERSION"
   },
   "allowScripts": {
-    "node-pty": true
+    "node-pty": true,
+    "@deepseek-ai/dsh-subprocess-local": true
   }
 }
 PKG
@@ -164,6 +165,11 @@ PKG
     echo "错误：node-pty 原生模块未编译成功（Linux 必须本地编译）"
     exit 1
   fi
+
+  # 只保留编译产物，删除含构建机绝对路径的 Makefile/中间文件。
+  find "$BUNDLE_DIR/node_modules/node-pty/build" -type f \
+    ! -path '*/Release/pty.node' -delete 2>/dev/null || true
+  find "$BUNDLE_DIR/node_modules/node-pty/build" -depth -type d -empty -delete 2>/dev/null || true
 
   echo "==> 生成完整性清单"
   {
