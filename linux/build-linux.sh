@@ -52,6 +52,12 @@ for arg in "$@"; do
   esac
 done
 
+if [[ "$PWD" == *" "* && "$USE_SYSTEM_NODE" == "1" ]]; then
+  echo "错误：当前构建路径包含空格，Arch 的 npm/node-gyp 无法处理。"
+  echo "请把项目放到无空格路径，或用 BUILDDIR 指定无空格目录后运行 makepkg。"
+  exit 1
+fi
+
 export NPM_CONFIG_CACHE="$NPM_CACHE"
 export NPM_CONFIG_FUND=false
 export NPM_CONFIG_AUDIT=false
