@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+# ============================================================
+# DeepSeek Desktop — Linux 版构建脚本
+#
+# 用法：
+#   ./build-linux.sh                    # 组装 runtime + 打 AppImage/tar.gz
+#   ./build-linux.sh --runtime-only     # 只组装 runtime（开发/Arch PKGBUILD 用）
+#   ./build-linux.sh --system-node      # 用系统 node 构建/运行（Arch 包推荐）
+#   ./build-linux.sh --node /path/node  # 指定 Node 二进制（会复制进 runtime）
+#   ./build-linux.sh --skip-runtime     # 复用已有 runtime，只打 Electron 包
+#   ./build-linux.sh --skip-npm-install # 复用已有 node_modules（仅本机快速重试）
+#
+# 可覆盖变量：
+#   NODE_VERSION    默认 v24.19.0（与 macOS/Windows 版本一致）
+#   DSH_VERSION     默认 0.1.0-rc.6
+# ============================================================
+set -euo pipefail
+cd "$(dirname "$0")"
+LINUX_DIR="$PWD"
+REPO_ROOT="$(cd .. && pwd)"
+VERSION="1.0.1"
+NODE_VERSION="${NODE_VERSION:-v24.19.0}"
+DSH_VERSION="${DSH_VERSION:-0.1.0-rc.6}"
+
+RUNTIME_DIR="$LINUX_DIR/runtime"
+BUNDLE_DIR="$RUNTIME_DIR/bundle"
+BUILD_DIR="$LINUX_DIR/build"
+DIST_DIR="$LINUX_DIR/dist"
+NPM_CACHE="${NPM_CONFIG_CACHE:-$BUILD_DIR/npm-cache}"
+
+DO_RUNTIME=1
+DO_ELECTRON=1
+DO_NPM_INSTALL=1
+USE_SYSTEM_NODE=0
+NODE_BIN_ARG=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --runtime-only) DO_ELECTRON=0 ;;
+    --system-node) USE_SYSTEM_NODE=1 ;;
+    --skip-runtime) DO_RUNTIME=0 ;;
+    --skip-npm-install) DO_NPM_INSTALL=0 ;;
+    --node)
+      echo "错误：--node 需要一个路径参数"
+      exit 2
+      ;;
+    --node=*) NODE_BIN_ARG="${arg#*=}" ;;
+    *)
+      echo "未知参数: $arg"
+      exit 2
+      ;;
+  esac
+done
+
+export NPM_CONFIG_CACHE="$NPM_CACHE"
+export NPM_CONFIG_FUND=false
+export NPM_CONFIG_AUDIT=false
+export ELECTRON_CACHE="$BUILD_DIR/electron-cache"
+export ELECTRON_BUILDER_CACHE="$BUILD_DIR/electron-builder-cache"
+# 容器/只读 HOME 环境也能构建：Electron 下载缓存放进 build/。
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$BUILD_DIR/xdg-cache}"
+mkdir -p "$BUILD_DIR" "$NPM_CACHE"
+
+# ---------------------------------------------------------------------------
+# 选择 Node
+# ---------------------------------------------------------------------------
+if [ "$DO_RUNTIME" = "1" ]; then
+  if [ -n "$NODE_BIN_ARG" ]; then
+    RUNTIME_NODE="$NODE_BIN_ARG"
+    COPY_NODE=1
+  elif [ "$USE_SYSTEM_NODE" = "1" ]; then
+    RUNTIME_NODE="$(command -v node)"
+    COPY_NODE=0
+  else
+    NODE_TARBALL="node-$NODE_VERSION-linux-x64.tar.xz"
+    NODE_URL="https://nodejs.org/dist/$NODE_VERSION/$NODE_TARBALL"
+    NODE_ARCHIVE="$BUILD_DIR/$NODE_TARBALL"
+    NODE_EXTRACT="$BUILD_DIR/node-$NODE_VERSION-linux-x64"
+    if [ ! -x "$NODE_EXTRACT/bin/node" ]; then
+      echo "==> 下载 Node $NODE_VERSION"
+      curl -fL --retry 3 -o "$NODE_ARCHIVE" "$NODE_URL"
+      rm -rf "$NODE_EXTRACT"
+      tar -xf "$NODE_ARCHIVE" -C "$BUILD_DIR"
+    fi
+    RUNTIME_NODE="$NODE_EXTRACT/bin/node"
+    COPY_NODE=1
+  fi
+
+  if [ ! -x "$RUNTIME_NODE" ]; then
+    echo "错误：找不到可执行的 Node: $RUNTIME_NODE"
+    exit 1
+  fi
+  echo "==> 使用 Node: $RUNTIME_NODE ($("$RUNTIME_NODE" --version))"
+
+  # 优先使用所选 Node 自带的 npm，保证原生模块 ABI 与内置 node 一致。
+  NPM_CLI="$(dirname "$RUNTIME_NODE")/../lib/node_modules/npm/bin/npm-cli.js"
+  if [ ! -f "$NPM_CLI" ]; then
+    NPM_CLI="$(command -v npm)"
+  fi
+  if [ ! -f "$NPM_CLI" ] && [ ! -x "$NPM_CLI" ]; then
+    echo "错误：找不到 npm CLI"
+    exit 1
+  fi
+  echo "==> 使用 npm: $NPM_CLI"
+else
+  RUNTIME_NODE=""
+  NPM_CLI="$(command -v npm || true)"
+fi
+
+# ---------------------------------------------------------------------------
+# 组装 runtime
+# ---------------------------------------------------------------------------
+if [ "$DO_RUNTIME" = "1" ]; then
+  echo "==> 清理旧 runtime"
+  rm -rf "$RUNTIME_DIR"
+  mkdir -p "$BUNDLE_DIR"
+
+  if [ "$COPY_NODE" = "1" ]; then
+    echo "==> 复制 Node 运行时"
+    cp "$RUNTIME_NODE" "$RUNTIME_DIR/node"
+    chmod 755 "$RUNTIME_DIR/node"
+    for license in LICENSE LICENSE.txt; do
+      [ -f "$(dirname "$RUNTIME_NODE")/../$license" ] && \
+        cp "$(dirname "$RUNTIME_NODE")/../$license" "$RUNTIME_DIR/$license" || true
+    done
+  else
+    echo "==> 使用系统 Node（不复制到 runtime）"
+  fi
+
+  echo "==> 安装 dsh 包 ($DSH_VERSION，Linux 原生模块将现场编译)"
+  cat > "$BUNDLE_DIR/package.json" <<PKG
+{
+  "name": "dsh-bundle",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@deepseek-ai/dsh": "$DSH_VERSION"
+  },
+  "allowScripts": {
+    "node-pty": true
+  }
+}
+PKG
+  (
+    cd "$BUNDLE_DIR"
+    if [ -f "$NPM_CLI" ]; then
+      "$RUNTIME_NODE" "$NPM_CLI" install --omit=dev --no-audit --no-fund
+    else
+      "$NPM_CLI" install --omit=dev --no-audit --no-fund
+    fi
+  )
+
+  if [ ! -f "$BUNDLE_DIR/node_modules/@deepseek-ai/dsh/lib/bin.js" ]; then
+    echo "错误：dsh bundle 安装失败"
+    exit 1
+  fi
+  if [ ! -f "$BUNDLE_DIR/node_modules/node-pty/build/Release/pty.node" ]; then
+    echo "错误：node-pty 原生模块未编译成功（Linux 必须本地编译）"
+    exit 1
+  fi
+
+  echo "==> 生成完整性清单"
+  {
+    echo '{'
+    echo '  "version": 1,'
+    echo '  "files": ['
+    first=1
+    for file in \
+      "node" \
+      "bundle/node_modules/@deepseek-ai/dsh/lib/bin.js" \
+      "bundle/package.json"; do
+      [ -f "$RUNTIME_DIR/$file" ] || continue
+      if [ "$first" = "0" ]; then echo ','; fi
+      first=0
+      printf '    {"path": "%s", "sha256": "%s"}' \
+        "$file" "$(sha256sum "$RUNTIME_DIR/$file" | awk '{print $1}')"
+    done
+    echo ''
+    echo '  ]'
+    echo '}'
+  } > "$RUNTIME_DIR/integrity.json"
+  cat "$RUNTIME_DIR/integrity.json"
+fi
+
+# ---------------------------------------------------------------------------
+# Electron 打包
+# ---------------------------------------------------------------------------
+if [ "$DO_ELECTRON" = "1" ]; then
+  if [ ! -f "$RUNTIME_DIR/integrity.json" ]; then
+    echo "错误：runtime 未组装，请先去掉 --skip-runtime 运行一次"
+    exit 1
+  fi
+
+  echo "==> 生成 Linux 图标"
+  mkdir -p assets/icons
+  for size in 16 32 48 64 128 256 512; do
+    if [ ! -f "assets/icons/${size}x${size}.png" ]; then
+      rsvg-convert -w "$size" -h "$size" \
+        "$REPO_ROOT/Resources/AppIcon.svg" \
+        -o "assets/icons/${size}x${size}.png"
+    fi
+  done
+  cp -f assets/icons/512x512.png assets/icon.png
+
+  if [ "$DO_NPM_INSTALL" = "1" ]; then
+    echo "==> 安装 Electron 打包依赖"
+    npm install --no-audit --no-fund
+  fi
+
+  echo "==> 打包 AppImage + tar.gz"
+  rm -rf "$DIST_DIR"
+  npx electron-builder --linux AppImage tar.gz
+  echo "构建完成："
+  ls -lh "$DIST_DIR"
+else
+  echo "==> runtime 组装完成（未打包 Electron）"
+fi

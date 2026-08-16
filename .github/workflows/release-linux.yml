@@ -1,0 +1,60 @@
+name: Release Linux
+
+on:
+  push:
+    tags:
+      - 'linux-v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install system build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin libfuse2t64
+
+      - name: Assemble runtime
+        shell: bash
+        run: |
+          cd linux
+          ./build-linux.sh --runtime-only
+
+      - name: Smoke test server lifecycle
+        shell: bash
+        run: |
+          cd linux
+          rm -rf /tmp/dsh-linux-smoke
+          DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-linux-smoke \
+            node test/server-manager.test.js
+
+      - name: Package AppImage and tar.gz
+        shell: bash
+        run: |
+          cd linux
+          ./build-linux.sh --skip-runtime
+
+      - name: Smoke test packaged binary
+        shell: bash
+        run: |
+          cd linux
+          rm -rf /tmp/dsh-packaged-smoke
+          DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-packaged-smoke             ./dist/linux-unpacked/deepseek --smoke-test             --ozone-platform=headless --no-sandbox --disable-gpu
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            linux/dist/DeepSeek-*.AppImage
+            linux/dist/DeepSeek-*.tar.gz
+          fail_on_unmatched_files: true
+          name: DeepSeek for Linux ${{ github.ref_name }}
+          generate_release_notes: true
