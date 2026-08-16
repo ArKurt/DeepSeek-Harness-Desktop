@@ -1,0 +1,44 @@
+name: Release macOS
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dsh bundle
+        shell: bash
+        run: |
+          rm -rf bundle
+          mkdir bundle
+          cd bundle
+          npm init -y
+          npm install @deepseek-ai/dsh@^0.1.0-rc.6
+          test -f node_modules/@deepseek-ai/dsh/lib/bin.js
+
+      - name: Build app and DMG
+        shell: bash
+        run: |
+          RUNTIME_NODE="$(which node)" DSH_BUNDLE_DIR="$PWD/bundle" ./build.sh
+
+      - name: Verify DMG exists
+        shell: bash
+        run: ls -l DeepSeek-*.dmg
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: DeepSeek-*.dmg
+          fail_on_unmatched_files: true
+          name: DeepSeek Desktop for Mac ${{ github.ref_name }}
+          generate_release_notes: true

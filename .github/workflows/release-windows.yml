@@ -3,7 +3,6 @@ name: Release Windows
 on:
   push:
     tags:
-      - 'v*'
       - 'win-v*'
   workflow_dispatch:
 
