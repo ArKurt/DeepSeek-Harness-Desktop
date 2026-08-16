@@ -84,17 +84,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          upsert() {
+          repo="${{ github.repository }}"
+          gh api "repos/$repo/releases" --paginate -q '.[] | [.tag_name, .id] | @tsv' > /tmp/release-ids.tsv
+          publish() {
             local tag="$1"
             local title="$2"
             local file="$3"
-            if gh release view "$tag" >/dev/null 2>&1; then
-              gh release edit "$tag" --title "$title" --notes-file "$file"
+            local id
+            id="$(awk -v t="$tag" '$1 == t { print $2; exit }' /tmp/release-ids.tsv)"
+            if [ -n "$id" ]; then
+              gh api -X PATCH "repos/$repo/releases/$id" -f tag_name="$tag" -F name="$title" -F body=@"$file" >/dev/null
             else
-              gh release create "$tag" --title "$title" --notes-file "$file"
+              gh api -X POST "repos/$repo/releases" -f tag_name="$tag" -F name="$title" -F body=@"$file" >/dev/null
             fi
           }
-          upsert mac-v1.0.1 "DeepSeek Desktop for Mac v1.0.1" /tmp/mac-v1.0.1.md
-          upsert win-v1.0.1 "DeepSeek for Windows v1.0.1" /tmp/win-v1.0.1.md
-          upsert mac-v1.0.0 "DeepSeek Desktop for Mac v1.0.0" /tmp/mac-v1.0.0.md
-          upsert win-v1.0.0 "DeepSeek for Windows v1.0.0" /tmp/win-v1.0.0.md
+          publish mac-v1.0.1 "DeepSeek Desktop for Mac v1.0.1" /tmp/mac-v1.0.1.md
+          publish win-v1.0.1 "DeepSeek for Windows v1.0.1" /tmp/win-v1.0.1.md
+          publish mac-v1.0.0 "DeepSeek Desktop for Mac v1.0.0" /tmp/mac-v1.0.0.md
+          publish win-v1.0.0 "DeepSeek for Windows v1.0.0" /tmp/win-v1.0.0.md
