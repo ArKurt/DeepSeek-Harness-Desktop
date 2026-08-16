@@ -67,7 +67,7 @@
 
 - 推送 `windows/**` 改动 → `.github/workflows/build-windows.yml` 自动构建，
   产出 `DeepSeek-Windows.zip` + `DeepSeek-Setup-1.0.1.exe`（Actions Artifacts）
-- 推送 `v*` / `win-v*` 标签 → `.github/workflows/release-windows.yml` 自动发布 GitHub Release
+- 推送 `mac-v*` / `win-v*` 标签 → 对应工作流自动发布 GitHub Release（macOS: `release-macos.yml`，Windows: `release-windows.yml`）
 - 本地构建：`cd windows && dotnet publish -c Release`（需 .NET 8 SDK + `EnableWindowsTargeting`）
 
 ## 📁 目录结构

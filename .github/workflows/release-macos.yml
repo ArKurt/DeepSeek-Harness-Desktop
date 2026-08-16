@@ -3,7 +3,7 @@ name: Release macOS
 on:
   push:
     tags:
-      - 'v*'
+      - 'mac-v*'
 
 jobs:
   release:
