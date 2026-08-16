@@ -21,3 +21,8 @@ linux/build/
 linux/dist/
 linux/runtime/
 linux/node_modules/
+
+# Arch PKGBUILD 本地构建残留
+linux/arch/src/
+linux/arch/pkg/
+linux/arch/*.pkg.tar.*
