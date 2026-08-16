@@ -50,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         installSignalHandlers()
         // 尽早拉起本地服务器：与 SwiftUI 界面初始化并行，缩短等待时间
-        Task { await ServerManager.shared.ensureServer() }
+        Task { @MainActor in await ServerManager.shared.ensureServer() }
     }
 
     /// 拦截 SIGTERM/SIGINT/SIGHUP：即使进程被 kill 也会先关掉拉起的服务器。
@@ -67,7 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleTerminationSignal() {
-        ServerManager.shared.shutdown()
+        MainActor.assumeIsolated {
+            ServerManager.shared.shutdown()
+        }
         exit(0)
     }
 
@@ -123,8 +125,8 @@ struct SplashView: View {
     private static let line2Chars = Array("for Mac")
 
     @State private var whaleIn = false
-    @State private var line1Shown = Array(repeating: false, count: SplashView.line1Chars.count)
-    @State private var line2Shown = Array(repeating: false, count: SplashView.line2Chars.count)
+    @State private var line1Visible = false
+    @State private var line2Visible = false
     @State private var showAuthor = false
 
     private let line1 = SplashView.line1Chars
@@ -166,8 +168,9 @@ struct SplashView: View {
                                 Text(String(line1[i]))
                                     .font(.system(size: 30, weight: .bold))
                                     .foregroundColor(.black)
-                                    .offset(y: line1Shown[i] ? 0 : 30)
-                                    .opacity(line1Shown[i] ? 1 : 0)
+                                    .offset(y: line1Visible ? 0 : 30)
+                                    .opacity(line1Visible ? 1 : 0)
+                                    .animation(.spring(response: 0.35, dampingFraction: 0.65).delay(0.07 * Double(i)), value: line1Visible)
                             }
                         }
                         // 第二行：for Mac
@@ -176,8 +179,9 @@ struct SplashView: View {
                                 Text(String(line2[i]))
                                     .font(.system(size: 20, weight: .semibold))
                                     .foregroundColor(.black.opacity(0.75))
-                                    .offset(y: line2Shown[i] ? 0 : 24)
-                                    .opacity(line2Shown[i] ? 1 : 0)
+                                    .offset(y: line2Visible ? 0 : 24)
+                                    .opacity(line2Visible ? 1 : 0)
+                                    .animation(.spring(response: 0.35, dampingFraction: 0.65).delay(0.07 * Double(i)), value: line2Visible)
                             }
                         }
                     }
@@ -207,20 +211,12 @@ struct SplashView: View {
             }
         }
         // 2) 第一行字母逐个弹入（0.3s 起，16 字符 ≈ 1.4s 完成）
-        for i in line1.indices {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3 + 0.07 * Double(i)) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
-                    line1Shown[i] = true
-                }
-            }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            line1Visible = true
         }
         // 3) 第二行字母稍晚弹入（0.8s 起，7 字符 ≈ 1.3s 完成）
-        for i in line2.indices {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + 0.07 * Double(i)) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
-                    line2Shown[i] = true
-                }
-            }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            line2Visible = true
         }
         // 4) 作者名浮现（3.2s），留存到 5.2s 淡出 ≈ 2 秒
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) {
@@ -261,7 +257,7 @@ struct ContentView: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 420)
                     Button("重试") {
-                        Task { await server.ensureServer() }
+                        Task { @MainActor in await server.ensureServer() }
                     }
                     .keyboardShortcut(.defaultAction)
                 }

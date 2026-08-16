@@ -4,6 +4,7 @@ import Combine
 /// 管理 DeepSeek Harness 本地 Web 服务器：
 /// 1) 若目标端口已有服务在跑（例如用户已手动启动过 dsh web）→ 直接连接；
 /// 2) 否则用 App 内置的 Node 运行时 + dsh 包拉起一个服务器，等待就绪。
+@MainActor
 final class ServerManager: ObservableObject {
     static let shared = ServerManager()
 
@@ -125,8 +126,10 @@ final class ServerManager: ObservableObject {
         p.environment = env
 
         // 日志写进 ~/Library/Application Support/DeepSeek/server.log
-        let logDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("DeepSeek", isDirectory: true)
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw ServerError.noResources
+        }
+        let logDir = appSupport.appendingPathComponent("DeepSeek", isDirectory: true)
         try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
         let logFile = logDir.appendingPathComponent("server.log")
         logURL = logFile

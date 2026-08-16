@@ -12,7 +12,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="DeepSeek"
 EXEC_NAME="DeepSeek"
-VERSION="1.0.0"
+VERSION="1.0.1"
 BUNDLE_ID="com.deepseek.desktop"
 TARGET="arm64-apple-macosx15.0"
 
