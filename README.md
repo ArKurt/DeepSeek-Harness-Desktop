@@ -40,8 +40,11 @@
 
 ### Linux（Garuda Mokka / Arch）
 
-1. 推荐：`AppImage` 下载后 `chmod +x` 直接运行，或使用 `linux/arch/PKGBUILD`：
+1. 推荐：AppImage 下载后运行 `linux/install-linux.sh` 一键安装到 `~/.local`，
+   或使用 `linux/arch/PKGBUILD`：
    ```bash
+   cd linux && ./install-linux.sh
+   # 或
    cd linux/arch && makepkg -si
    ```
 2. 绿色版：解压 `DeepSeek-1.0.1-x64.tar.gz` 后运行其中的 `deepseek`

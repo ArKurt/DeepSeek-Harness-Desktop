@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, dialog, Menu, screen, shell } = require('electron');
 const path = require('path');
 
 const {
@@ -13,9 +13,12 @@ const {
 } = require('./config');
 const { ServerManager } = require('./server-manager');
 const { verifyRuntimeIntegrity } = require('./integrity');
+const { loadWindowState, saveWindowState } = require('./window-state');
 
 const SPLASH_MIN_MS = 5200;
 const APP_NAME = 'DeepSeek';
+const MAX_LOAD_RETRIES = 3;
+const RELOAD_DELAY_MS = 1500;
 
 let splashWindow = null;
 let mainWindow = null;
@@ -23,6 +26,7 @@ let server = null;
 let startupPhase = 'splash'; // splash | main | failed
 let quitting = false;
 let cleanedUp = false;
+let crashDialogOpen = false;
 
 // ---------------------------------------------------------------------------
 // 单实例：重复启动时聚焦已有窗口并退出新进程。
@@ -132,10 +136,28 @@ function createSplashWindow() {
   });
 }
 
+function windowStateFile() {
+  return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+/** 窗口状态里的坐标是否还落在某个显示器上（外接屏拔掉后回到默认位置）。 */
+function boundsVisibleOnSomeDisplay(state) {
+  if (state.x === null || state.y === null) return false;
+  return screen.getAllDisplays().some((display) => {
+    const area = display.workArea;
+    const overlapX = Math.min(state.x + state.width, area.x + area.width) - Math.max(state.x, area.x);
+    const overlapY = Math.min(state.y + state.height, area.y + area.height) - Math.max(state.y, area.y);
+    return overlapX >= 80 && overlapY >= 80;
+  });
+}
+
 function createMainWindow(url) {
+  const state = loadWindowState(windowStateFile());
+  const position = boundsVisibleOnSomeDisplay(state) ? { x: state.x, y: state.y } : {};
+
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: state.width,
+    height: state.height,
     minWidth: 1000,
     minHeight: 640,
     backgroundColor: '#ffffff',
@@ -143,6 +165,7 @@ function createMainWindow(url) {
     title: APP_NAME,
     autoHideMenuBar: false,
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
+    ...position,
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
@@ -150,7 +173,11 @@ function createMainWindow(url) {
     },
   });
 
-  mainWindow.loadURL(url);
+  if (state.maximized) {
+    mainWindow.maximize();
+  }
+
+  mainWindow.loadURL(url).catch(() => {});
   mainWindow.once('ready-to-show', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
@@ -168,6 +195,22 @@ function createMainWindow(url) {
   }, 3000);
   mainWindow.once('ready-to-show', () => clearTimeout(showFallbackTimer));
   mainWindow.on('closed', () => clearTimeout(showFallbackTimer));
+
+  // 退出/重启前保存正常尺寸；最大化时用 getNormalBounds 保留还原尺寸。
+  mainWindow.on('close', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const maximized = mainWindow.isMaximized();
+    const bounds = maximized && typeof mainWindow.getNormalBounds === 'function'
+      ? mainWindow.getNormalBounds()
+      : mainWindow.getBounds();
+    saveWindowState(windowStateFile(), {
+      width: bounds.width,
+      height: bounds.height,
+      x: bounds.x,
+      y: bounds.y,
+      maximized,
+    });
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
     openExternalSafe(target);
@@ -189,20 +232,66 @@ function createMainWindow(url) {
   });
 
   let reloadTimer = null;
-  mainWindow.webContents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
+  let loadFailures = 0;
+  let loadFailureDialogOpen = false;
+
+  const clearReloadTimer = () => {
+    if (reloadTimer) {
+      clearTimeout(reloadTimer);
+      reloadTimer = null;
+    }
+  };
+
+  const showLoadFailureDialog = async (failedUrl) => {
+    if (loadFailureDialogOpen || quitting || !mainWindow || mainWindow.isDestroyed()) return;
+    loadFailureDialogOpen = true;
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: APP_NAME,
+      message: '界面加载失败',
+      detail: `无法连接到本地服务：${failedUrl}\n\n请检查端口 ${port} 是否被占用，或查看日志：\n${logFile()}`,
+      buttons: ['重试', '退出'],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+    loadFailureDialogOpen = false;
+
+    if (response === 0) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        loadFailures = 0;
+        mainWindow.loadURL(failedUrl).catch(() => {});
+      }
+    } else if (!quitting) {
+      await quitApp();
+    }
+  };
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    loadFailures = 0;
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, code, _description, failedUrl, isMainFrame) => {
     if (!isMainFrame || code === -3) return; // -3 = 用户/导航取消
-    if (reloadTimer) clearTimeout(reloadTimer);
+    clearReloadTimer();
+    loadFailures += 1;
+
+    if (loadFailures > MAX_LOAD_RETRIES) {
+      showLoadFailureDialog(failedUrl).catch(() => {});
+      return;
+    }
+
     reloadTimer = setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.loadURL(url);
+        mainWindow.loadURL(failedUrl).catch(() => {});
       }
-    }, 1500);
+    }, RELOAD_DELAY_MS);
   });
 
   mainWindow.on('closed', () => {
-    if (reloadTimer) clearTimeout(reloadTimer);
+    clearReloadTimer();
     mainWindow = null;
-    if (!quitting) app.quit();
+    if (!quitting && startupPhase === 'main') app.quit();
   });
 }
 
@@ -292,6 +381,47 @@ async function showStartupErrorAndMaybeRetry(error) {
   }
 }
 
+/** 关闭主窗口并等待 closed 事件，供服务崩溃后重新走启动流程使用。 */
+function closeMainWindow() {
+  return new Promise((resolve) => {
+    const windowToClose = mainWindow;
+    if (!windowToClose || windowToClose.isDestroyed()) {
+      mainWindow = null;
+      resolve();
+      return;
+    }
+    windowToClose.once('closed', resolve);
+    windowToClose.close();
+  });
+}
+
+async function handleUnexpectedServerExit({ code, signal }) {
+  if (quitting || startupPhase !== 'main' || crashDialogOpen) return;
+  crashDialogOpen = true;
+
+  const why = signal ? `被信号 ${signal} 终止` : `退出码 ${code}`;
+  const parent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+  const { response } = await dialog.showMessageBox(parent, {
+    type: 'warning',
+    title: APP_NAME,
+    message: '本地服务已停止',
+    detail: `DeepSeek 本地服务异常退出（${why}）。\n\n可以尝试重新启动服务，插件或配置问题可能需要先处理。\n\n日志：${logFile()}`,
+    buttons: ['重新启动', '退出'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  crashDialogOpen = false;
+
+  if (response === 0 && !quitting) {
+    startupPhase = 'splash';
+    await closeMainWindow();
+    await runStartup();
+  } else if (!quitting) {
+    await quitApp();
+  }
+}
+
 async function runStartup() {
   const startedAt = Date.now();
   if (!splashWindow || splashWindow.isDestroyed()) {
@@ -304,6 +434,9 @@ async function runStartup() {
   }
   server = buildServerManager();
   server.on('status', (message) => sendSplashStatus(message));
+  server.on('unexpected-exit', (info) => {
+    handleUnexpectedServerExit(info).catch(() => {});
+  });
 
   const outcome = await server.ensureServer().then(
     (result) => ({ ok: true, result }),

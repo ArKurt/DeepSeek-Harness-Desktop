@@ -10,6 +10,9 @@ Chromium 窗口承载 Web UI。开发与测试环境为 **Garuda Mokka / Arch Li
 - 启动动画：鲸鱼 logo + "DeepSeek Harness / for Linux" + by Condex（约 5.2 秒）
 - 单实例锁：重复启动会聚焦已打开的窗口
 - 智能服务生命周期：端口已有服务则复用，退出时只清理自己拉起的进程
+- 服务异常恢复：已就绪的本地服务意外退出时弹窗提示，可一键重新启动
+- 窗口状态记忆：记住上次的位置、大小和最大化状态，显示器拔插后自动回到可见区域
+- 加载失败兜底：界面连续加载失败后弹窗提供重试，不再无限静默刷新
 - 防篡改：启动时校验 `runtime/integrity.json` 中关键文件的 SHA256
 - 数据互通：与命令行 `dsh` 共用 `~/.dsh`
 - 日志：`${XDG_STATE_HOME:-~/.local/state}/deepseek/server.log`
@@ -50,7 +53,20 @@ DSH_DESKTOP_DEV=1 electron .
 > 继续构建（产物仍写回原目录），无需手动搬迁项目；`mktemp` 不可用时才需要
 > 把项目放到无空格路径。
 
-### Garuda / Arch 安装
+### AppImage 一键安装（当前机器）
+
+```bash
+cd linux
+./install-linux.sh                  # 用户安装到 ~/.local，应用菜单会出现 DeepSeek
+# sudo ./install-linux.sh --prefix /usr/local   # 或安装到系统目录
+./install-linux.sh --uninstall      # 卸载
+```
+
+安装脚本默认使用 `dist/` 下版本号最新的 AppImage；也可以显式指定
+`--appimage dist/DeepSeek-*.AppImage`。它只安装启动器、图标和 `.desktop`
+文件，不会改动 AppImage 内部的 runtime，因此不会触发防篡改校验。
+
+### Garuda / Arch 包安装
 
 ```bash
 cd linux/arch

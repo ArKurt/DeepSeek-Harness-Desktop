@@ -11,7 +11,8 @@
     "start": "DSH_DESKTOP_DEV=1 electron .",
     "dist": "electron-builder --linux AppImage tar.gz",
     "pack": "electron-builder --dir",
-    "smoke": "node test/server-manager.test.js"
+    "smoke": "node test/server-manager.test.js",
+    "test": "node test/window-state.test.js && node test/server-crash.test.js"
   },
   "devDependencies": {
     "electron": "^43.4.0",

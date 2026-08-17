@@ -68,11 +68,14 @@ class ServerManager extends EventEmitter {
     this.lastError = null;
     this._logStream = null;
     this._tail = '';
+    this._ready = false;
+    this._shuttingDown = false;
   }
 
   /** 启动/复用服务器；成功后返回 { reused:boolean, port:number }。 */
   async ensureServer() {
     this.lastError = null;
+    this._ready = false;
 
     // 重试场景：先清掉上一次没退干净的进程。
     if (this.child && this.spawnedByUs) {
@@ -97,6 +100,7 @@ class ServerManager extends EventEmitter {
       throw new Error(`${why}。最近日志：\n${detail.slice(-4000)}`);
     }
 
+    this._ready = true;
     this.emit('status', '本地服务已就绪');
     return { reused: false, port: this.port };
   }
@@ -131,6 +135,8 @@ class ServerManager extends EventEmitter {
 
       this.emit('status', '正在启动本地服务…');
       this._spawnError = null;
+      this._ready = false;
+      this._shuttingDown = false;
       const child = spawn(
         this.nodeBin,
         [this.dshBin, 'web', '--port', String(this.port)],
@@ -161,6 +167,11 @@ class ServerManager extends EventEmitter {
       });
       child.on('exit', (code, signal) => {
         this.emit('status', signal ? `本地服务被信号 ${signal} 终止` : `本地服务已退出（code ${code}）`);
+        // 只有“已经就绪后”的退出才算意外崩溃；启动阶段的失败由
+        // ensureServer 的等待循环统一处理，避免弹两套错误对话框。
+        if (this._ready && !this._shuttingDown && this.spawnedByUs) {
+          this.emit('unexpected-exit', { code, signal });
+        }
       });
       child.on('close', () => {
         this._logStream?.end();
@@ -191,6 +202,8 @@ class ServerManager extends EventEmitter {
 
   /** 关闭由本应用拉起的服务器。复用的外部服务器不受影响。 */
   async shutdown({ graceMs = 3000 } = {}) {
+    this._shuttingDown = true;
+    this._ready = false;
     const child = this.child;
     this.child = null;
     if (!child || !this.spawnedByUs) {
