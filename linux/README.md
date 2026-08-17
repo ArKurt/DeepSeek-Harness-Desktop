@@ -46,6 +46,10 @@ cd linux
 DSH_DESKTOP_DEV=1 electron .
 ```
 
+> 构建路径若包含空格，`build-linux.sh` 会自动在无空格临时目录创建符号链接
+> 继续构建（产物仍写回原目录），无需手动搬迁项目；`mktemp` 不可用时才需要
+> 把项目放到无空格路径。
+
 ### Garuda / Arch 安装
 
 ```bash

@@ -17,7 +17,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 LINUX_DIR="$PWD"
-REPO_ROOT="$(cd .. && pwd)"
+# 用物理路径（pwd -P）解析仓库根：空格路径自愈迁移后 $PWD 是符号链接，
+# 逻辑上的上级目录是临时目录，而图标等资源在真实仓库根下。
+REPO_ROOT="$(dirname "$(pwd -P)")"
 VERSION="1.0.1"
 NODE_VERSION="${NODE_VERSION:-v24.19.0}"
 DSH_VERSION="${DSH_VERSION:-0.1.0-rc.6}"
@@ -52,10 +54,28 @@ for arg in "$@"; do
   esac
 done
 
-if [[ "$PWD" == *" "* && "$USE_SYSTEM_NODE" == "1" ]]; then
-  echo "错误：当前构建路径包含空格，Arch 的 npm/node-gyp 无法处理。"
-  echo "请把项目放到无空格路径，或用 BUILDDIR 指定无空格目录后运行 makepkg。"
-  exit 1
+# ---------------------------------------------------------------------------
+# 空格路径自愈：旧版 node-gyp 生成的 Makefile 不会转义路径，带空格的构建路径
+# 可能导致编译失败。检测到空格时，自动在无空格临时目录建一个指向本目录的
+# 符号链接并重新执行本脚本，所有构建产物仍通过符号链接写回原目录。
+# DSH_RELOCATED 防止 TMPDIR 本身含空格时无限重进。
+# ---------------------------------------------------------------------------
+if [[ -z "${DSH_RELOCATED:-}" && "$PWD" == *" "* ]]; then
+  echo "==> 检测到构建路径包含空格：$PWD"
+  echo "==> 自动切换到无空格临时路径继续构建（产物仍写入原目录）"
+  RELOC_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dsh-build.XXXXXX")" || {
+    echo "错误：无法创建无空格临时目录。请把项目放到无空格路径后重试。"
+    exit 1
+  }
+  RELOC_LINK="$RELOC_DIR/build"
+  if ! ln -s "$LINUX_DIR" "$RELOC_LINK"; then
+    echo "错误：无法在 $RELOC_DIR 创建符号链接。"
+    echo "请把项目放到无空格路径，或用 BUILDDIR 指定无空格目录后运行 makepkg。"
+    exit 1
+  fi
+  echo "==> 重新在 $RELOC_LINK 下执行：build-linux.sh $*"
+  cd "$RELOC_LINK"
+  exec env DSH_RELOCATED=1 bash "$RELOC_LINK/build-linux.sh" "$@"
 fi
 
 export NPM_CONFIG_CACHE="$NPM_CACHE"

@@ -158,6 +158,17 @@ function createMainWindow(url) {
     }
   });
 
+  // 兜底显示：Harness UI 等页面在窗口隐藏（show:false）时可能不绘制首帧，
+  // 导致 ready-to-show 永不触发、窗口永远无法显示（死锁）。
+  // 3 秒后若仍未显示则强制显示，页面绘制后 ready-to-show 会照常触发。
+  const showFallbackTimer = setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+  }, 3000);
+  mainWindow.once('ready-to-show', () => clearTimeout(showFallbackTimer));
+  mainWindow.on('closed', () => clearTimeout(showFallbackTimer));
+
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
     openExternalSafe(target);
     return { action: 'deny' };
