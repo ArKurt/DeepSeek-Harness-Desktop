@@ -117,7 +117,7 @@ dsh plugin --profile web add <插件包名>
 
 ---
 
-## 4A. Linux（Garuda / Arch）安装插件
+## 4A. Linux（Arch Linux）安装插件
 
 AppImage / tar.gz 版内置 Node 与 dsh，`--appimage-extract-and-run` 或绿色版的目录结构为
 `runtime/node` + `runtime/bundle/...`；Arch 包版使用系统 `node`。

@@ -84,7 +84,7 @@ echo "    Prefix:   $PREFIX"
 
 # AppImage 放在 lib/deepseek/，bin/deepseek 是启动器：
 # - 有 /dev/fuse 时直接挂载运行（最快）；没有 FUSE 的环境自动解包运行，
-#   保证最小化/容器化 Garuda 也能启动。
+#   保证最小化/容器化的 Arch Linux 环境也能启动。
 # - HOME 只读时（只读快照/容器），把配置与 dsh 数据落到 prefix 下，
 #   避免 Chromium 写不进 ~/.config 导致窗口一闪而过。
 install -Dm755 "$APPIMAGE" "$INSTALLED_APPIMAGE"

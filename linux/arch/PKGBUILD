@@ -1,5 +1,5 @@
 # Maintainer: ArKurt <dongzi24@outlook.com>
-# 在 Garuda/Arch 上本地构建并安装：
+# 在 Arch Linux 上本地构建并安装：
 #   cd linux/arch
 #   makepkg -si
 # 说明：应用代码来自 ArKurt/DeepSeek-Harness-Desktop 的 linux-v1.0.1 标签，

@@ -19,7 +19,7 @@
 |------|--------|--------|----------|
 | macOS | Swift + SwiftUI + WKWebView | `.dmg`（拖入即装） | Apple Silicon，macOS 15+ |
 | Windows | C# WPF + WebView2 | `.exe` 安装器 / `.zip` 绿色版 | Windows 10/11 x64 |
-| Linux | Electron + 内置 Node/dsh | `.AppImage` / `.tar.gz` / Arch PKGBUILD | Garuda Mokka / Arch x64（其余发行版可运行 AppImage） |
+| Linux | Electron + 内置 Node/dsh | `.AppImage` / `.tar.gz` / Arch PKGBUILD | Arch Linux x64（其他主流发行版通常可运行 AppImage） |
 
 ## ⬇️ 下载安装
 
@@ -38,7 +38,7 @@
 2. 安装向导：一路 Next 即可；绿色版：解压后双击 `DeepSeek.exe`
 3. 需要系统已安装 **Microsoft Edge WebView2 Runtime**（Windows 10/11 一般已自带）
 
-### Linux（Garuda Mokka / Arch）
+### Linux（Arch Linux）
 
 1. 推荐：AppImage 下载后运行 `linux/install-linux.sh` 一键安装到 `~/.local`，
    或使用 `linux/arch/PKGBUILD`：
@@ -92,7 +92,7 @@
 
 ### Linux（自动构建 / 本地构建）
 
-`linux/` 目录为 Linux 版源码（Electron + 内置 Node/dsh），在 Garuda/Arch 上开发：
+`linux/` 目录为 Linux 版源码（Electron + 内置 Node/dsh），在 Arch Linux 上开发：
 
 ```bash
 cd linux

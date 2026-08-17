@@ -1,7 +1,7 @@
 # DeepSeek Desktop — Linux 版
 
 Linux 桌面壳：Electron + 内置 Node.js/dsh 运行时，自动拉起 `dsh web` 并用
-Chromium 窗口承载 Web UI。开发与测试环境为 **Garuda Mokka / Arch Linux**。
+Chromium 窗口承载 Web UI。开发与测试环境为 **Arch Linux**。
 
 ## ✨ 特性
 
@@ -23,7 +23,7 @@ Chromium 窗口承载 Web UI。开发与测试环境为 **Garuda Mokka / Arch Li
 |------|------|
 | `DeepSeek-1.0.1-x86_64.AppImage` | 开箱即用 AppImage（内置 Electron + Node + dsh） |
 | `DeepSeek-1.0.1-x64.tar.gz` | 解压后运行 `./deepseek` 的绿色版 |
-| Arch PKGBUILD | Garuda/Arch 系统包，使用系统 electron + nodejs |
+| Arch PKGBUILD | Arch Linux 系统包，使用系统 electron + nodejs |
 
 GitHub Actions 产物与 Release 中文件名以实际构建为准。
 
@@ -66,7 +66,7 @@ cd linux
 `--appimage dist/DeepSeek-*.AppImage`。它只安装启动器、图标和 `.desktop`
 文件，不会改动 AppImage 内部的 runtime，因此不会触发防篡改校验。
 
-### Garuda / Arch 包安装
+### Arch Linux 包安装
 
 ```bash
 cd linux/arch
