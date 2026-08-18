@@ -1,5 +1,11 @@
 'use strict';
 
+// niri 等纯 Wayland 合成器上，Electron 默认 ozone=wayland 时主窗口经常无法映射。
+// 必须在 require('electron') 之前设置；启动器也可覆盖此环境变量。
+if (process.platform === 'linux' && !process.env.ELECTRON_OZONE_PLATFORM_HINT) {
+  process.env.ELECTRON_OZONE_PLATFORM_HINT = 'x11';
+}
+
 const { app, BrowserWindow, dialog, Menu, screen, shell } = require('electron');
 const path = require('path');
 
@@ -178,6 +184,10 @@ function createMainWindow(url) {
   }
 
   mainWindow.loadURL(url).catch(() => {});
+  // 先 show 再等页面：Linux 上隐藏窗口关闭欢迎屏后会被当成“最后一个窗口关闭”而退出；
+  // niri 上 show:false 再 show() 也可能永远不映射。启动动画已经覆盖了等待时间。
+  mainWindow.show();
+  mainWindow.focus();
   mainWindow.once('ready-to-show', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
@@ -451,11 +461,13 @@ async function runStartup() {
   }
 
   startupPhase = 'main';
+  const url = `http://127.0.0.1:${outcome.result.port}`;
+  // 必须先创建主窗口再关欢迎屏。Linux 默认在最后一个窗口关闭时退出，
+  // 先关欢迎屏会导致进程在主窗口出现前就退出（欢迎屏一闪然后消失）。
+  createMainWindow(url);
   if (splashWindow && !splashWindow.isDestroyed()) {
     splashWindow.close();
   }
-  const url = `http://127.0.0.1:${outcome.result.port}`;
-  createMainWindow(url);
 }
 
 async function shutdownServer() {
@@ -476,6 +488,15 @@ app.on('before-quit', (event) => {
   if (cleanedUp) return;
   event.preventDefault();
   quitApp();
+});
+
+// Linux/Windows 默认：最后一个 BrowserWindow 关闭就 quit。
+// 欢迎屏 → 主窗口切换、以及启动失败弹框前关掉欢迎屏，都会短暂变成 0 个窗口。
+app.on('window-all-closed', () => {
+  if (quitting) return;
+  if (startupPhase === 'splash' && !splashWindow && !mainWindow) {
+    app.quit();
+  }
 });
 
 // kill/系统注销时也走正常清理流程。
