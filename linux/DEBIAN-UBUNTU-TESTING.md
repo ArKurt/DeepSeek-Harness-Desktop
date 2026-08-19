@@ -6,13 +6,14 @@
 
 ## 目标
 
-验证 Linux 桌面版在 Debian / Ubuntu 上的安装与运行，为上游作者要求的
-`.deb` 安装包做准备。
+验证 Linux 桌面版在 Debian / Ubuntu 上的安装与运行，并打出 `.deb`。
+AppImage / tar.gz 冒烟是基线；`.deb` 通过后再把打包目标合进 `linux`。
 
 ## 测试矩阵
 
 | 发行版 | 优先测试项 |
 |--------|------------|
+| Debian 13 | tar.gz 冒烟、AppImage 冒烟、GUI、apt 安装 .deb（当前实机） |
 | Debian 12 | tar.gz 冒烟、AppImage 冒烟、GUI 启动、本地构建 .deb |
 | Ubuntu 22.04 | tar.gz 冒烟、AppImage 冒烟、GUI 启动 |
 | Ubuntu 24.04 | tar.gz 冒烟、AppImage 冒烟、GUI 启动 |
@@ -24,14 +25,20 @@ PR 的 **Build Linux** 工作流 Artifacts `DeepSeek-Linux` 中包含：
 - `DeepSeek-1.0.1-x86_64.AppImage`
 - `DeepSeek-1.0.1-x64.tar.gz`
 
-也可以本地构建：
+`.deb` 目前只在本分支本地打（不进 CI，避免改动 PR #5）：
 
 ```bash
-git clone --branch linux https://github.com/ArKurt/DeepSeek-Harness-Desktop
+# Arch / CachyOS 构建机需要 fpm 的 libcrypt.so.1 兼容库
+sudo pacman -S libxcrypt-compat
+
+git clone --branch debian-ubuntu-test-plan https://github.com/ArKurt/DeepSeek-Harness-Desktop
 cd DeepSeek-Harness-Desktop/linux
 ./build-linux.sh --runtime-only
 ./build-linux.sh --skip-runtime
+# 产物含 AppImage、tar.gz、DeepSeek-1.0.1-amd64.deb
 ```
+
+不要在 2 核 / 4GB 的 Debian 测试 VM 上跑完整 `build-linux.sh`。
 
 ## 2. 安装运行时依赖
 
@@ -40,15 +47,15 @@ Debian 12 / Ubuntu 22.04：
 ```bash
 sudo apt-get update
 sudo apt-get install -y libfuse2 libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 \
-  libatspi2.0-0 libuuid1 libsecret-1-0 libgbm1 libasound2 libxkbcommon0 libdrm2
+  libatspi2.0-0 libuuid1 libsecret-1-0 libgbm1 libasound2 libxkbcommon0 libdrm2 xvfb
 ```
 
-Ubuntu 24.04（FUSE 包名不同）：
+Debian 13 / Ubuntu 24.04（t64 包名）：
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y libfuse2t64 libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 \
-  libatspi2.0-0 libuuid1 libsecret-1-0 libgbm1 libasound2 libxkbcommon0 libdrm2
+sudo apt-get install -y libfuse2t64 libgtk-3-0t64 libnotify4 libnss3 libxss1 libxtst6 \
+  libatspi2.0-0t64 libuuid1 libsecret-1-0 libgbm1 libasound2t64 libxkbcommon0 libdrm2 xvfb
 ```
 
 ## 3. 无头冒烟测试
@@ -57,26 +64,28 @@ sudo apt-get install -y libfuse2t64 libgtk-3-0 libnotify4 libnss3 libxss1 libxts
 
 ```bash
 tar -xzf DeepSeek-1.0.1-x64.tar.gz
-cd <解压目录>
+cd DeepSeek-1.0.1-x64
 
-DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-debian-smoke \
+xvfb-run -a env DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-debian-smoke \
   ./deepseek --smoke-test --no-sandbox --disable-gpu
 ```
 
 ### AppImage 版
 
+AppImage 运行时会把 `--smoke-test` 吃掉（`bad option`，退出码 9）。必须加 `--`：
+
 ```bash
 chmod +x DeepSeek-1.0.1-x86_64.AppImage
 
-DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-debian-smoke \
-  ./DeepSeek-1.0.1-x86_64.AppImage --smoke-test --no-sandbox --disable-gpu
+xvfb-run -a env DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-debian-smoke \
+  ./DeepSeek-1.0.1-x86_64.AppImage --no-sandbox --disable-gpu -- --smoke-test
 ```
 
 FUSE 不可用时：
 
 ```bash
 APPIMAGE_EXTRACT_AND_RUN=1 \
-  ./DeepSeek-1.0.1-x86_64.AppImage --smoke-test --no-sandbox --disable-gpu
+  ./DeepSeek-1.0.1-x86_64.AppImage --no-sandbox --disable-gpu -- --smoke-test
 ```
 
 通过标准：
@@ -97,27 +106,30 @@ DSH_DESKTOP_HOME=/tmp/dsh-gui ./deepseek
 2. 关闭窗口后服务被清理：`pgrep -af 'bin.js web'` 为空。
 3. 日志在 `${XDG_STATE_HOME:-~/.local/state}/deepseek/server.log`。
 4. 若 `3080` 端口已有服务，桌面版复用且退出时不关闭它，属预期行为。
+5. niri / 纯 Wayland 上欢迎屏闪退后进程退出是已知问题（`linux` 已修）；Debian 13 + Xfce/X11 上发行版 AppImage 可正常切到主窗口。
 
-## 5. 在 Debian / Ubuntu 上现场构建并安装 .deb
+中文界面缺字（小方块）时安装 `fonts-noto-cjk fonts-noto-color-emoji`。
+
+## 5. 安装 .deb（推荐：Arch 构建，Debian 只装）
+
+用户级 AppImage 启动器 `~/.local/bin/deepseek` 会抢 PATH。装 .deb 前先卸掉：
 
 ```bash
-sudo apt-get install -y nodejs npm librsvg2-bin
-git clone --branch linux https://github.com/ArKurt/DeepSeek-Harness-Desktop
-cd DeepSeek-Harness-Desktop/linux
-
-./build-linux.sh --runtime-only
-./build-linux.sh --skip-runtime
-npx electron-builder --linux deb
+cd linux
+./install-linux.sh --uninstall
 ```
 
-安装与冒烟：
+然后：
 
 ```bash
 sudo apt install -y ./dist/DeepSeek-1.0.1-amd64.deb
 
-DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-deb-smoke \
-  deepseek --smoke-test --no-sandbox --disable-gpu
+xvfb-run -a env DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-deb-smoke \
+  deepseek --no-sandbox --disable-gpu --smoke-test
 ```
+
+检查系统菜单：`/usr/share/applications/deepseek.desktop`，可执行文件默认在
+`/opt/DeepSeek/deepseek`。会话数据仍是 `~/.dsh`。
 
 卸载：
 
@@ -130,6 +142,6 @@ sudo apt remove deepseek-harness-desktop
 - 测试通过后，再把 `.deb` 打包目标与多发行版 CI 矩阵加入 `linux` 分支并推送
   （此时 PR #5 才会更新）。
 - 需要支持 Debian 12 / Ubuntu 22.04 / 24.04 时，CI 可使用 Docker 容器矩阵：
-  `ubuntu:22.04`、`ubuntu:24.04`、`debian:12`。
+  `ubuntu:22.04`、`ubuntu:24.04`、`debian:12`、`debian:13`。
 - 在 CI 中执行“`apt install ./...deb` → `deepseek --smoke-test`”，
   模拟真实用户的安装与启动路径。
