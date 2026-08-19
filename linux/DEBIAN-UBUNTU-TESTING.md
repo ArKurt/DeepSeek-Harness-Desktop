@@ -80,7 +80,9 @@ xvfb-run -a env DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-debian-smoke \
 
 ### AppImage 版
 
-AppImage 运行时会把 `--smoke-test` 吃掉（`bad option`，退出码 9）。必须加 `--`：
+AppImage 运行时会把**应用参数** `--smoke-test` 吃掉（`bad option`，退出码 9），
+直跑 AppImage 必须加 `--` 分隔。经 `install-linux.sh` 安装的 wrapper 注入的
+`--ozone-platform=x11` 属于运行时参数，已实测能透传并启动 GUI，不受该限制：
 
 ```bash
 chmod +x DeepSeek-1.0.1-x86_64.AppImage
