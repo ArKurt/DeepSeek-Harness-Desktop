@@ -91,6 +91,19 @@ install -Dm755 "$APPIMAGE" "$INSTALLED_APPIMAGE"
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/deepseek" <<EOF
 #!/bin/sh
+CONFIG_DIR="\${XDG_CONFIG_HOME:-\$HOME/.config}/DeepSeek"
+if [ -L "\$CONFIG_DIR/SingletonLock" ]; then
+  lock_target=\$(readlink "\$CONFIG_DIR/SingletonLock" 2>/dev/null || true)
+  lock_pid=\${lock_target##*-}
+  if [ -n "\$lock_pid" ] && ! kill -0 "\$lock_pid" 2>/dev/null; then
+    rm -f "\$CONFIG_DIR/SingletonLock" \\
+          "\$CONFIG_DIR/SingletonCookie" \\
+          "\$CONFIG_DIR/SingletonSocket"
+  fi
+fi
+# niri 等 Wayland 合成器上 Electron 主窗口可能不显示，默认走 XWayland。
+export ELECTRON_OZONE_PLATFORM_HINT="\${ELECTRON_OZONE_PLATFORM_HINT:-x11}"
+unset ELECTRON_RUN_AS_NODE
 if [ ! -w "\${HOME:-/}" ] && [ -w "$PREFIX" ]; then
   export XDG_CONFIG_HOME="\${XDG_CONFIG_HOME:-$PREFIX/config}"
   export XDG_STATE_HOME="\${XDG_STATE_HOME:-$PREFIX/state}"
