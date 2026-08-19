@@ -58,10 +58,10 @@ jobs:
         run: |
           cd linux
           sudo apt-get install -y ./dist/DeepSeek-*.deb
-          grep Exec /usr/share/applications/deepseek.desktop
+          grep -q -- '--ozone-platform=x11' /usr/share/applications/deepseek.desktop
           rm -rf /tmp/dsh-deb-smoke
           DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-deb-smoke \
-            deepseek --smoke-test --no-sandbox --disable-gpu
+            deepseek --smoke-test --ozone-platform=headless --no-sandbox --disable-gpu
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
