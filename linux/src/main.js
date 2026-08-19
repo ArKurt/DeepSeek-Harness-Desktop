@@ -1,5 +1,7 @@
 'use strict';
 
+// Linux ozone 必须在进程启动参数里设（--ozone-platform=x11）。
+// Electron 43 已移除 ELECTRON_OZONE_PLATFORM_HINT，JS 里赋值也晚于原生初始化。
 const { app, BrowserWindow, dialog, Menu, screen, shell } = require('electron');
 const path = require('path');
 
@@ -178,6 +180,10 @@ function createMainWindow(url) {
   }
 
   mainWindow.loadURL(url).catch(() => {});
+  // 先 show 再等页面：Linux 上隐藏窗口关闭欢迎屏后会被当成“最后一个窗口关闭”而退出；
+  // niri 上 show:false 再 show() 也可能永远不映射。启动动画已经覆盖了等待时间。
+  mainWindow.show();
+  mainWindow.focus();
   mainWindow.once('ready-to-show', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
@@ -357,6 +363,7 @@ async function waitMinSplash(startedAt) {
 }
 
 async function showStartupErrorAndMaybeRetry(error) {
+  if (quitting) return;
   startupPhase = 'failed';
   if (splashWindow && !splashWindow.isDestroyed()) {
     splashWindow.close();
@@ -372,6 +379,13 @@ async function showStartupErrorAndMaybeRetry(error) {
     cancelId: 1,
     noLink: true,
   });
+
+  // 对话框打开期间可能已经进入退出流程（例如收到 SIGTERM）。
+  // 对话框关闭后再补发一次退出请求，避免 0 窗口进程滞留。
+  if (quitting) {
+    app.quit();
+    return;
+  }
 
   if (response === 0) {
     startupPhase = 'splash';
@@ -423,6 +437,7 @@ async function handleUnexpectedServerExit({ code, signal }) {
 }
 
 async function runStartup() {
+  if (quitting) return;
   const startedAt = Date.now();
   if (!splashWindow || splashWindow.isDestroyed()) {
     createSplashWindow();
@@ -445,17 +460,23 @@ async function runStartup() {
 
   await waitMinSplash(startedAt);
 
+  // 等待启动动画期间用户可能已经退出（例如 Alt+F4 欢迎屏）。
+  // 退出流程会关闭所有窗口；这里若继续创建主窗口，会在退出中闪一下。
+  if (quitting) return;
+
   if (!outcome.ok) {
     await showStartupErrorAndMaybeRetry(outcome.error);
     return;
   }
 
   startupPhase = 'main';
+  const url = `http://127.0.0.1:${outcome.result.port}`;
+  // 必须先创建主窗口再关欢迎屏。Linux 默认在最后一个窗口关闭时退出，
+  // 先关欢迎屏会导致进程在主窗口出现前就退出（欢迎屏一闪然后消失）。
+  createMainWindow(url);
   if (splashWindow && !splashWindow.isDestroyed()) {
     splashWindow.close();
   }
-  const url = `http://127.0.0.1:${outcome.result.port}`;
-  createMainWindow(url);
 }
 
 async function shutdownServer() {
@@ -477,6 +498,12 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   quitApp();
 });
+
+// Linux 默认会在最后一个窗口关闭时 quit。这里只拦截默认行为，不主动退出：
+// 服务崩溃点「重新启动」会先关主窗口再重建欢迎屏，中间 0 个窗口；
+// Electron 在微任务之前同步 emit window-all-closed，此时 splash 还不存在，
+// 若在这里 app.quit() 会盖掉后续 runStartup()。真正退出走各窗口 closed / quitApp。
+app.on('window-all-closed', () => {});
 
 // kill/系统注销时也走正常清理流程。
 for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
