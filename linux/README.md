@@ -84,6 +84,8 @@ makepkg -si
 
 Linux 启动器默认附加 `--ozone-platform=x11`（走 XWayland）。Electron 43 已忽略
 `ELECTRON_OZONE_PLATFORM_HINT`。若要原生 Wayland：`deepseek --ozone-platform=wayland`。
+直跑二进制不带该标志，需手动加上：tar.gz 的 `./deepseek`、`.deb` 的
+`/opt/DeepSeek/deepseek`、以及不经 `install-linux.sh` wrapper 的 AppImage。
 
 ## Wayland / niri / noctalia
 

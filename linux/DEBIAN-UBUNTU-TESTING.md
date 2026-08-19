@@ -104,7 +104,7 @@ APPIMAGE_EXTRACT_AND_RUN=1 \
 ## 4. GUI 实机测试
 
 ```bash
-DSH_DESKTOP_HOME=/tmp/dsh-gui ./deepseek
+DSH_DESKTOP_HOME=/tmp/dsh-gui ./deepseek --ozone-platform=x11
 ```
 
 检查点：

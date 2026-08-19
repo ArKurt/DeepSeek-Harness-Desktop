@@ -363,6 +363,7 @@ async function waitMinSplash(startedAt) {
 }
 
 async function showStartupErrorAndMaybeRetry(error) {
+  if (quitting) return;
   startupPhase = 'failed';
   if (splashWindow && !splashWindow.isDestroyed()) {
     splashWindow.close();
@@ -429,6 +430,7 @@ async function handleUnexpectedServerExit({ code, signal }) {
 }
 
 async function runStartup() {
+  if (quitting) return;
   const startedAt = Date.now();
   if (!splashWindow || splashWindow.isDestroyed()) {
     createSplashWindow();
