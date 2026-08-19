@@ -183,8 +183,9 @@ PKG
   fi
 
   # npm 的 allowScripts 在个别环境（新版 npm / 不同依赖解析结果）下可能没执行
-  # node-pty 的 install 脚本。这里显式执行 node-pty 自带脚本兜底：
-  # 先试官方 prebuild；失败或没产出 pty.node 时再用 npm 自带的 node-gyp 现场编译。
+  # node-pty 的 install 脚本。这里显式跑一遍它的 install 流程兜底：
+  # scripts/prebuild.js 只是"本平台有没有预编译产物"的探测（有则 exit 0，无则
+  # exit 1），Linux 从来没有预编译，所以实际总会落到 node-gyp 现场编译这一步。
   PTY_NODE="$BUNDLE_DIR/node_modules/node-pty/build/Release/pty.node"
   if [ ! -f "$PTY_NODE" ]; then
     echo "==> npm 未生成 node-pty 原生模块，显式执行 node-pty 构建"

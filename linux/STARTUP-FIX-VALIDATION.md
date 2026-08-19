@@ -68,5 +68,6 @@ Arch + niri，`--user-data-dir=/tmp/dsh-niri-retest`、`DSH_DESKTOP_PORT=3098`�
 - [ ] 重新构建 AppImage / tar.gz / deb 三种产物。
 - [ ] `grep Exec /usr/share/applications/deepseek.desktop` 确认含
       `--ozone-platform=x11`。
-- [ ] 重装 deb 后跑 `deepseek --smoke-test`。
+- [ ] 重装 deb 后跑 `deepseek --smoke-test`，并核对 stdout 出现
+      `DSH_SMOKE_CLEAN`（只看退出码不够：命中单实例锁时也返回 0）。
 - [ ] 打 `linux-v*` 标签前确认 release workflow 的资产列表包含 `.deb`。

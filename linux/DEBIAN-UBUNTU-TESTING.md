@@ -80,9 +80,11 @@ xvfb-run -a env DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-debian-smoke \
 
 ### AppImage 版
 
-AppImage 运行时会把**应用参数** `--smoke-test` 吃掉（`bad option`，退出码 9），
-直跑 AppImage 必须加 `--` 分隔。经 `install-linux.sh` 安装的 wrapper 注入的
-`--ozone-platform=x11` 属于运行时参数，已实测能透传并启动 GUI，不受该限制：
+electron-builder 26 内嵌的 AppImage 运行时只拦截 `--appimage-*`，其余参数原样
+透传给应用，`--smoke-test` 和 `--ozone-platform=x11` 都不需要 `--` 分隔（FUSE
+直跑与 `APPIMAGE_EXTRACT_AND_RUN=1` 两条路径均已实测输出 `DSH_SMOKE_CLEAN`）。
+更老的 AppImage 运行时会对未知长选项报 `bad option` 并退出 9；加 `--` 分隔的写法
+在两种运行时下都安全，可作为保险写法：
 
 ```bash
 chmod +x DeepSeek-1.0.1-x86_64.AppImage
@@ -90,6 +92,9 @@ chmod +x DeepSeek-1.0.1-x86_64.AppImage
 xvfb-run -a env DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-debian-smoke \
   ./DeepSeek-1.0.1-x86_64.AppImage --no-sandbox --disable-gpu -- --smoke-test
 ```
+
+> 冒烟必须核对 stdout 里的 `DSH_SMOKE_CLEAN`。退出码不足以判定成功：命中单实例锁
+> （本机已有 DeepSeek 在跑）时 `--smoke-test` 会直接 `app.quit()`，同样返回 0。
 
 FUSE 不可用时：
 
