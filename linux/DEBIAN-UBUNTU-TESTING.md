@@ -28,8 +28,10 @@ PR 的 **Build Linux** 工作流 Artifacts `DeepSeek-Linux` 中包含：
 `.deb` 目前只在本分支本地打（不进 CI，避免改动 PR #5）：
 
 ```bash
-# Arch / CachyOS 构建机需要 fpm 的 libcrypt.so.1 兼容库
+# Arch / CachyOS 构建机需要 fpm 的 libcrypt.so.1 兼容库（不要把 .so.1 软链到 .so.2）
 sudo pacman -S libxcrypt-compat
+# 若暂时不能 sudo：从官方仓库解出 libxcrypt-compat，构建时设置
+# LD_LIBRARY_PATH=<extract>/usr/lib
 
 git clone --branch debian-ubuntu-test-plan https://github.com/ArKurt/DeepSeek-Harness-Desktop
 cd DeepSeek-Harness-Desktop/linux
@@ -39,6 +41,11 @@ cd DeepSeek-Harness-Desktop/linux
 ```
 
 不要在 2 核 / 4GB 的 Debian 测试 VM 上跑完整 `build-linux.sh`。
+
+Arch 上现场编译的 `node-pty` 会链到本机 glibc（CachyOS 为 2.42）。Debian 13 是 glibc 2.41，
+装上后冒烟会报 `GLIBC_2.42 not found`。发往 Debian/Ubuntu 的包应在
+`ubuntu-latest`（或同等旧 glibc）上组装 runtime；本机验证时可把 CI/发行版
+产物里的 `node-pty/build/Release/pty.node` 换进 `linux/runtime` 后再打 `.deb`。
 
 ## 2. 安装运行时依赖
 
