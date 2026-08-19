@@ -9,7 +9,7 @@
   "author": "Condex <dongzi24@outlook.com>",
   "homepage": "https://github.com/ArKurt/DeepSeek-Harness-Desktop",
   "scripts": {
-    "start": "DSH_DESKTOP_DEV=1 electron .",
+    "start": "DSH_DESKTOP_DEV=1 electron --ozone-platform=x11 .",
     "dist": "electron-builder --linux AppImage tar.gz deb",
     "pack": "electron-builder --dir",
     "smoke": "node test/server-manager.test.js",
@@ -64,6 +64,9 @@
       "category": "Utility",
       "artifactName": "DeepSeek-${version}-${arch}.${ext}",
       "executableName": "deepseek",
+      "executableArgs": [
+        "--ozone-platform=x11"
+      ],
       "synopsis": "DeepSeek Harness Desktop",
       "syncDesktopName": true,
       "maintainer": "ArKurt <dongzi24@outlook.com>"

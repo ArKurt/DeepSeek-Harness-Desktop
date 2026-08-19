@@ -126,6 +126,10 @@ cd linux
 ./install-linux.sh --uninstall
 ```
 
+若菜单里 DeepSeek 没有图标：多半是卸载后留下了
+`~/.local/share/icons/hicolor/icon-theme.cache`。删掉该文件，或重新跑一次
+带图标缓存刷新的 `install-linux.sh --uninstall`，然后注销/重开一次菜单。
+
 然后：
 
 ```bash
