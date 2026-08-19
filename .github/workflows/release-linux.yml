@@ -39,7 +39,7 @@ jobs:
           DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-linux-smoke \
             node test/server-manager.test.js
 
-      - name: Package AppImage and tar.gz
+      - name: Package AppImage, tar.gz, and deb
         shell: bash
         run: |
           cd linux
@@ -52,12 +52,23 @@ jobs:
           rm -rf /tmp/dsh-packaged-smoke
           DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-packaged-smoke             ./dist/linux-unpacked/deepseek --smoke-test             --ozone-platform=headless --no-sandbox --disable-gpu
 
+      - name: Smoke test installed deb
+        shell: bash
+        run: |
+          cd linux
+          sudo apt-get install -y ./dist/DeepSeek-*.deb
+          grep Exec /usr/share/applications/deepseek.desktop
+          rm -rf /tmp/dsh-deb-smoke
+          DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-deb-smoke \
+            deepseek --smoke-test --no-sandbox --disable-gpu
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             linux/dist/DeepSeek-*.AppImage
             linux/dist/DeepSeek-*.tar.gz
+            linux/dist/DeepSeek-*.deb
           fail_on_unmatched_files: true
           name: DeepSeek for Linux ${{ github.ref_name }}
           generate_release_notes: true
