@@ -132,8 +132,13 @@ for size in 16 32 48 64 128 256 512; do
   install -Dm644 "assets/icons/${size}x${size}.png" \
     "$ICON_BASE/${size}x${size}/apps/deepseek.png"
 done
+# 用户级 hicolor 目录一般没有 index.theme，gtk-update-icon-cache 会直接失败。
+# 那种情况下把可能存在的旧 cache 删掉，否则 GTK 会继续用陈旧索引，新图标不显示。
+# 与卸载分支保持同一套处理。
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-  gtk-update-icon-cache -f "$ICON_BASE" >/dev/null 2>&1 || true
+  gtk-update-icon-cache -f "$ICON_BASE" >/dev/null 2>&1 || rm -f "$ICON_BASE/icon-theme.cache"
+else
+  rm -f "$ICON_BASE/icon-theme.cache"
 fi
 
 DESKTOP_FILE="$APP_DIR/deepseek.desktop"
