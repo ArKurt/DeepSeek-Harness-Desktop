@@ -59,6 +59,13 @@ if [ "$UNINSTALL" = "1" ]; then
   if command -v update-desktop-database >/dev/null 2>&1 && [ -d "$APP_DIR" ]; then
     update-desktop-database "$APP_DIR" >/dev/null 2>&1 || true
   fi
+  # 删掉 PNG 后必须刷新/丢掉用户级 icon cache，否则 GTK 会继续解析到已删除的路径，
+  # 系统级 .deb 图标（/usr/share/icons/hicolor）也显示不出来。
+  if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -d "$ICON_BASE" ]; then
+    gtk-update-icon-cache -f "$ICON_BASE" >/dev/null 2>&1 || rm -f "$ICON_BASE/icon-theme.cache"
+  else
+    rm -f "$ICON_BASE/icon-theme.cache"
+  fi
   echo "已卸载（目录未删除，以免误删其他文件）"
   exit 0
 fi
@@ -91,16 +98,33 @@ install -Dm755 "$APPIMAGE" "$INSTALLED_APPIMAGE"
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/deepseek" <<EOF
 #!/bin/sh
+unset ELECTRON_RUN_AS_NODE
 if [ ! -w "\${HOME:-/}" ] && [ -w "$PREFIX" ]; then
   export XDG_CONFIG_HOME="\${XDG_CONFIG_HOME:-$PREFIX/config}"
   export XDG_STATE_HOME="\${XDG_STATE_HOME:-$PREFIX/state}"
   export DSH_DESKTOP_HOME="\${DSH_DESKTOP_HOME:-$PREFIX/data}"
   mkdir -p "\$XDG_CONFIG_HOME" "\$XDG_STATE_HOME" "\$DSH_DESKTOP_HOME"
 fi
-if [ -e /dev/fuse ]; then
-  exec "$INSTALLED_APPIMAGE" "\$@"
+CONFIG_DIR="\${XDG_CONFIG_HOME:-\$HOME/.config}/DeepSeek"
+if [ -L "\$CONFIG_DIR/SingletonLock" ]; then
+  lock_target=\$(readlink "\$CONFIG_DIR/SingletonLock" 2>/dev/null || true)
+  lock_pid=\${lock_target##*-}
+  case "\$lock_pid" in
+    ''|*[!0-9]*) ;;
+    *)
+      if ! kill -0 "\$lock_pid" 2>/dev/null; then
+        rm -f "\$CONFIG_DIR/SingletonLock" \\
+              "\$CONFIG_DIR/SingletonCookie" \\
+              "\$CONFIG_DIR/SingletonSocket"
+      fi
+      ;;
+  esac
 fi
-exec /usr/bin/env APPIMAGE_EXTRACT_AND_RUN=1 "$INSTALLED_APPIMAGE" "\$@"
+# Electron 43 只认命令行 --ozone-platform；环境变量 ELECTRON_OZONE_PLATFORM_HINT 无效。
+if [ -e /dev/fuse ]; then
+  exec "$INSTALLED_APPIMAGE" --ozone-platform=x11 "\$@"
+fi
+exec /usr/bin/env APPIMAGE_EXTRACT_AND_RUN=1 "$INSTALLED_APPIMAGE" --ozone-platform=x11 "\$@"
 EOF
 chmod 755 "$BIN_DIR/deepseek"
 
@@ -108,6 +132,9 @@ for size in 16 32 48 64 128 256 512; do
   install -Dm644 "assets/icons/${size}x${size}.png" \
     "$ICON_BASE/${size}x${size}/apps/deepseek.png"
 done
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -f "$ICON_BASE" >/dev/null 2>&1 || true
+fi
 
 DESKTOP_FILE="$APP_DIR/deepseek.desktop"
 mkdir -p "$APP_DIR"
