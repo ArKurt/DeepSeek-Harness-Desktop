@@ -182,7 +182,12 @@ exec "$INSTALLED_APPIMAGE" --ozone-platform=x11 "$@"
 
 ## 5. GitHub 官方规范与礼仪对照
 
-依据 GitHub 官方文档：《About merge methods on GitHub》《Best practices for pull requests》《About releases》。
+依据 GitHub 官方文档（查阅日期 2026-08-20）：
+
+- [About merge methods on GitHub](https://docs.github.com/articles/about-merge-methods-on-github)
+- [Best practices for pull requests](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/getting-started/best-practices-for-pull-requests)
+- [About releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)
+- [Pull request merges](https://docs.github.com/articles/about-pull-request-merges)
 
 ### 5.1 PR
 
