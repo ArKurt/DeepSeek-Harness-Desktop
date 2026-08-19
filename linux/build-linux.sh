@@ -181,7 +181,29 @@ PKG
     echo "错误：dsh bundle 安装失败"
     exit 1
   fi
-  if [ ! -f "$BUNDLE_DIR/node_modules/node-pty/build/Release/pty.node" ]; then
+
+  # npm 的 allowScripts 在个别环境（新版 npm / 不同依赖解析结果）下可能没执行
+  # node-pty 的 install 脚本。这里显式执行 node-pty 自带脚本兜底：
+  # 先试官方 prebuild；失败或没产出 pty.node 时再用 npm 自带的 node-gyp 现场编译。
+  PTY_NODE="$BUNDLE_DIR/node_modules/node-pty/build/Release/pty.node"
+  if [ ! -f "$PTY_NODE" ]; then
+    echo "==> npm 未生成 node-pty 原生模块，显式执行 node-pty 构建"
+    (
+      cd "$BUNDLE_DIR/node_modules/node-pty"
+      if ! "$RUNTIME_NODE" scripts/prebuild.js || [ ! -f "$PTY_NODE" ]; then
+        NODE_GYP="$(dirname "$NPM_CLI")/../node_modules/node-gyp/bin/node-gyp.js"
+        if [ ! -f "$NODE_GYP" ]; then
+          NODE_GYP="$(command -v node-gyp || true)"
+        fi
+        if [ -z "$NODE_GYP" ]; then
+          echo "错误：找不到 node-gyp，无法现场编译 node-pty"
+          exit 1
+        fi
+        "$RUNTIME_NODE" "$NODE_GYP" rebuild
+      fi
+    )
+  fi
+  if [ ! -f "$PTY_NODE" ]; then
     echo "错误：node-pty 原生模块未编译成功（Linux 必须本地编译）"
     exit 1
   fi
