@@ -89,27 +89,6 @@ makepkg -si
 - `DSH_DESKTOP_NODE`：自定义 Node 可执行文件（优先于内置 node）
 - `DSH_DESKTOP_RUNTIME`：自定义 runtime 目录（包含 `bundle/.../bin.js`）
 - `DSH_DESKTOP_DEV=1`：开发模式（跳过完整性清单、显示开发者工具菜单）
-- `ELECTRON_OZONE_PLATFORM_HINT`：Electron 显示后端。`install-linux.sh` 默认设为 `x11`（走 XWayland），原生 Wayland 出问题时常能修好。若要强制原生 Wayland：`ELECTRON_OZONE_PLATFORM_HINT=wayland deepseek`
-
-## Wayland / niri / noctalia
-
-在 **niri**（以及 Noctalia 这类 bar）上，欢迎屏闪一下然后“消失”通常不是崩溃，而是下面几件事叠在一起：
-
-1. **Linux Electron 默认会在最后一个窗口关闭时退出。** 旧逻辑先关欢迎屏再创建主窗口，中间 0 个窗口，进程直接退出。现在会先建主窗口再关欢迎屏。
-2. **niri 可能把新窗口开到别的 workspace。** 欢迎屏 `skipTaskbar`，Noctalia 任务栏上看不到；主窗口若落在 workspace 3，当前屏就会像闪退。可切 workspace，或运行：
-   ```bash
-   niri msg windows | rg -i deepseek
-   ```
-3. **点第二次立刻退出：** 单实例锁还在（上一次进程没清干净）。启动器会清掉已死进程的 `~/.config/DeepSeek/Singleton*`；也可先 `pkill -x deepseek` 再开。
-4. **窗口规则：** `.desktop` 的 `StartupWMClass=deepseek`，niri 里 `app-id` 是 `deepseek`。需要的话可在 `~/.config/niri/config.kdl` 加：
-   ```kdl
-   window-rule {
-       match app-id="deepseek"
-       open-maximized false
-   }
-   ```
-
-日志：`${XDG_STATE_HOME:-~/.local/state}/deepseek/server.log`。
 
 Linux 启动器默认附加 `--ozone-platform=x11`（走 XWayland）。Electron 43 已忽略
 `ELECTRON_OZONE_PLATFORM_HINT`。若要原生 Wayland：`deepseek --ozone-platform=wayland`。
