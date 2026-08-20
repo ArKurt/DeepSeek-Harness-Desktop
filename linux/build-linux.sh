@@ -3,7 +3,7 @@
 # DeepSeek Desktop — Linux 版构建脚本
 #
 # 用法：
-#   ./build-linux.sh                    # 组装 runtime + 打 AppImage/tar.gz
+#   ./build-linux.sh                    # 组装 runtime + 打 AppImage/tar.gz/deb
 #   ./build-linux.sh --runtime-only     # 只组装 runtime（开发/Arch PKGBUILD 用）
 #   ./build-linux.sh --system-node      # 用系统 node 构建/运行（Arch 包推荐）
 #   ./build-linux.sh --node /path/node  # 指定 Node 二进制（会复制进 runtime）
@@ -181,7 +181,30 @@ PKG
     echo "错误：dsh bundle 安装失败"
     exit 1
   fi
-  if [ ! -f "$BUNDLE_DIR/node_modules/node-pty/build/Release/pty.node" ]; then
+
+  # npm 的 allowScripts 在个别环境（新版 npm / 不同依赖解析结果）下可能没执行
+  # node-pty 的 install 脚本。这里显式跑一遍它的 install 流程兜底：
+  # scripts/prebuild.js 只是"本平台有没有预编译产物"的探测（有则 exit 0，无则
+  # exit 1），Linux 从来没有预编译，所以实际总会落到 node-gyp 现场编译这一步。
+  PTY_NODE="$BUNDLE_DIR/node_modules/node-pty/build/Release/pty.node"
+  if [ ! -f "$PTY_NODE" ]; then
+    echo "==> npm 未生成 node-pty 原生模块，显式执行 node-pty 构建"
+    (
+      cd "$BUNDLE_DIR/node_modules/node-pty"
+      if ! "$RUNTIME_NODE" scripts/prebuild.js || [ ! -f "$PTY_NODE" ]; then
+        NODE_GYP="$(dirname "$NPM_CLI")/../node_modules/node-gyp/bin/node-gyp.js"
+        if [ ! -f "$NODE_GYP" ]; then
+          NODE_GYP="$(command -v node-gyp || true)"
+        fi
+        if [ -z "$NODE_GYP" ]; then
+          echo "错误：找不到 node-gyp，无法现场编译 node-pty"
+          exit 1
+        fi
+        "$RUNTIME_NODE" "$NODE_GYP" rebuild
+      fi
+    )
+  fi
+  if [ ! -f "$PTY_NODE" ]; then
     echo "错误：node-pty 原生模块未编译成功（Linux 必须本地编译）"
     exit 1
   fi
@@ -239,9 +262,9 @@ if [ "$DO_ELECTRON" = "1" ]; then
     npm install --no-audit --no-fund
   fi
 
-  echo "==> 打包 AppImage + tar.gz"
+  echo "==> 打包 AppImage + tar.gz + deb"
   rm -rf "$DIST_DIR"
-  npx electron-builder --linux AppImage tar.gz
+  npx electron-builder --linux AppImage tar.gz deb
   echo "构建完成："
   ls -lh "$DIST_DIR"
 else

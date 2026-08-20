@@ -59,6 +59,13 @@ if [ "$UNINSTALL" = "1" ]; then
   if command -v update-desktop-database >/dev/null 2>&1 && [ -d "$APP_DIR" ]; then
     update-desktop-database "$APP_DIR" >/dev/null 2>&1 || true
   fi
+  # 删掉 PNG 后必须刷新/丢掉用户级 icon cache，否则 GTK 会继续解析到已删除的路径，
+  # 系统级 .deb 图标（/usr/share/icons/hicolor）也显示不出来。
+  if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -d "$ICON_BASE" ]; then
+    gtk-update-icon-cache -f "$ICON_BASE" >/dev/null 2>&1 || rm -f "$ICON_BASE/icon-theme.cache"
+  else
+    rm -f "$ICON_BASE/icon-theme.cache"
+  fi
   echo "已卸载（目录未删除，以免误删其他文件）"
   exit 0
 fi
@@ -91,18 +98,6 @@ install -Dm755 "$APPIMAGE" "$INSTALLED_APPIMAGE"
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/deepseek" <<EOF
 #!/bin/sh
-CONFIG_DIR="\${XDG_CONFIG_HOME:-\$HOME/.config}/DeepSeek"
-if [ -L "\$CONFIG_DIR/SingletonLock" ]; then
-  lock_target=\$(readlink "\$CONFIG_DIR/SingletonLock" 2>/dev/null || true)
-  lock_pid=\${lock_target##*-}
-  if [ -n "\$lock_pid" ] && ! kill -0 "\$lock_pid" 2>/dev/null; then
-    rm -f "\$CONFIG_DIR/SingletonLock" \\
-          "\$CONFIG_DIR/SingletonCookie" \\
-          "\$CONFIG_DIR/SingletonSocket"
-  fi
-fi
-# niri 等 Wayland 合成器上 Electron 主窗口可能不显示，默认走 XWayland。
-export ELECTRON_OZONE_PLATFORM_HINT="\${ELECTRON_OZONE_PLATFORM_HINT:-x11}"
 unset ELECTRON_RUN_AS_NODE
 if [ ! -w "\${HOME:-/}" ] && [ -w "$PREFIX" ]; then
   export XDG_CONFIG_HOME="\${XDG_CONFIG_HOME:-$PREFIX/config}"
@@ -110,10 +105,26 @@ if [ ! -w "\${HOME:-/}" ] && [ -w "$PREFIX" ]; then
   export DSH_DESKTOP_HOME="\${DSH_DESKTOP_HOME:-$PREFIX/data}"
   mkdir -p "\$XDG_CONFIG_HOME" "\$XDG_STATE_HOME" "\$DSH_DESKTOP_HOME"
 fi
-if [ -e /dev/fuse ]; then
-  exec "$INSTALLED_APPIMAGE" "\$@"
+CONFIG_DIR="\${XDG_CONFIG_HOME:-\$HOME/.config}/DeepSeek"
+if [ -L "\$CONFIG_DIR/SingletonLock" ]; then
+  lock_target=\$(readlink "\$CONFIG_DIR/SingletonLock" 2>/dev/null || true)
+  lock_pid=\${lock_target##*-}
+  case "\$lock_pid" in
+    ''|*[!0-9]*) ;;
+    *)
+      if ! kill -0 "\$lock_pid" 2>/dev/null; then
+        rm -f "\$CONFIG_DIR/SingletonLock" \\
+              "\$CONFIG_DIR/SingletonCookie" \\
+              "\$CONFIG_DIR/SingletonSocket"
+      fi
+      ;;
+  esac
 fi
-exec /usr/bin/env APPIMAGE_EXTRACT_AND_RUN=1 "$INSTALLED_APPIMAGE" "\$@"
+# Electron 43 只认命令行 --ozone-platform；环境变量 ELECTRON_OZONE_PLATFORM_HINT 无效。
+if [ -e /dev/fuse ]; then
+  exec "$INSTALLED_APPIMAGE" --ozone-platform=x11 "\$@"
+fi
+exec /usr/bin/env APPIMAGE_EXTRACT_AND_RUN=1 "$INSTALLED_APPIMAGE" --ozone-platform=x11 "\$@"
 EOF
 chmod 755 "$BIN_DIR/deepseek"
 
@@ -121,6 +132,14 @@ for size in 16 32 48 64 128 256 512; do
   install -Dm644 "assets/icons/${size}x${size}.png" \
     "$ICON_BASE/${size}x${size}/apps/deepseek.png"
 done
+# 用户级 hicolor 目录一般没有 index.theme，gtk-update-icon-cache 会直接失败。
+# 那种情况下把可能存在的旧 cache 删掉，否则 GTK 会继续用陈旧索引，新图标不显示。
+# 与卸载分支保持同一套处理。
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -f "$ICON_BASE" >/dev/null 2>&1 || rm -f "$ICON_BASE/icon-theme.cache"
+else
+  rm -f "$ICON_BASE/icon-theme.cache"
+fi
 
 DESKTOP_FILE="$APP_DIR/deepseek.desktop"
 mkdir -p "$APP_DIR"

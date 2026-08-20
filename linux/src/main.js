@@ -1,11 +1,7 @@
 'use strict';
 
-// niri 等纯 Wayland 合成器上，Electron 默认 ozone=wayland 时主窗口经常无法映射。
-// 必须在 require('electron') 之前设置；启动器也可覆盖此环境变量。
-if (process.platform === 'linux' && !process.env.ELECTRON_OZONE_PLATFORM_HINT) {
-  process.env.ELECTRON_OZONE_PLATFORM_HINT = 'x11';
-}
-
+// Linux ozone 必须在进程启动参数里设（--ozone-platform=x11）。
+// Electron 43 已移除 ELECTRON_OZONE_PLATFORM_HINT，JS 里赋值也晚于原生初始化。
 const { app, BrowserWindow, dialog, Menu, screen, shell } = require('electron');
 const path = require('path');
 
@@ -367,6 +363,7 @@ async function waitMinSplash(startedAt) {
 }
 
 async function showStartupErrorAndMaybeRetry(error) {
+  if (quitting) return;
   startupPhase = 'failed';
   if (splashWindow && !splashWindow.isDestroyed()) {
     splashWindow.close();
@@ -382,6 +379,13 @@ async function showStartupErrorAndMaybeRetry(error) {
     cancelId: 1,
     noLink: true,
   });
+
+  // 对话框打开期间可能已经进入退出流程（例如收到 SIGTERM）。
+  // 对话框关闭后再补发一次退出请求，避免 0 窗口进程滞留。
+  if (quitting) {
+    app.quit();
+    return;
+  }
 
   if (response === 0) {
     startupPhase = 'splash';
@@ -433,6 +437,7 @@ async function handleUnexpectedServerExit({ code, signal }) {
 }
 
 async function runStartup() {
+  if (quitting) return;
   const startedAt = Date.now();
   if (!splashWindow || splashWindow.isDestroyed()) {
     createSplashWindow();
@@ -454,6 +459,10 @@ async function runStartup() {
   );
 
   await waitMinSplash(startedAt);
+
+  // 等待启动动画期间用户可能已经退出（例如 Alt+F4 欢迎屏）。
+  // 退出流程会关闭所有窗口；这里若继续创建主窗口，会在退出中闪一下。
+  if (quitting) return;
 
   if (!outcome.ok) {
     await showStartupErrorAndMaybeRetry(outcome.error);
@@ -490,14 +499,11 @@ app.on('before-quit', (event) => {
   quitApp();
 });
 
-// Linux/Windows 默认：最后一个 BrowserWindow 关闭就 quit。
-// 欢迎屏 → 主窗口切换、以及启动失败弹框前关掉欢迎屏，都会短暂变成 0 个窗口。
-app.on('window-all-closed', () => {
-  if (quitting) return;
-  if (startupPhase === 'splash' && !splashWindow && !mainWindow) {
-    app.quit();
-  }
-});
+// Linux 默认会在最后一个窗口关闭时 quit。这里只拦截默认行为，不主动退出：
+// 服务崩溃点「重新启动」会先关主窗口再重建欢迎屏，中间 0 个窗口；
+// Electron 在微任务之前同步 emit window-all-closed，此时 splash 还不存在，
+// 若在这里 app.quit() 会盖掉后续 runStartup()。真正退出走各窗口 closed / quitApp。
+app.on('window-all-closed', () => {});
 
 // kill/系统注销时也走正常清理流程。
 for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
