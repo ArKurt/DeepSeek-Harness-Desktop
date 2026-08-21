@@ -23,7 +23,7 @@ jobs:
       - name: Install system build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y librsvg2-bin libfuse2t64
+          sudo apt-get install -y librsvg2-bin libfuse2t64 rpm
 
       - name: Assemble runtime
         shell: bash
@@ -39,7 +39,7 @@ jobs:
           DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-linux-smoke \
             node test/server-manager.test.js
 
-      - name: Package AppImage, tar.gz, and deb
+      - name: Package AppImage, tar.gz, deb, and rpm
         shell: bash
         run: |
           cd linux
@@ -74,6 +74,9 @@ jobs:
             linux/dist/DeepSeek-*.AppImage
             linux/dist/DeepSeek-*.tar.gz
             linux/dist/DeepSeek-*.deb
+            linux/dist/DeepSeek-*.rpm
           fail_on_unmatched_files: true
           name: DeepSeek for Linux ${{ github.ref_name }}
           generate_release_notes: true
+          body: |
+            Assets: `.AppImage` (portable), `.tar.gz` (green), `.deb` (Debian/Ubuntu), `.rpm` (Fedora).

@@ -24,7 +24,7 @@ jobs:
       - name: Install system build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y librsvg2-bin libfuse2t64
+          sudo apt-get install -y librsvg2-bin libfuse2t64 rpm
 
       - name: Assemble runtime and smoke test
         shell: bash
@@ -40,7 +40,7 @@ jobs:
           DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-linux-smoke \
             node test/server-manager.test.js
 
-      - name: Package AppImage, tar.gz, and deb
+      - name: Package AppImage, tar.gz, deb, and rpm
         shell: bash
         run: |
           cd linux
@@ -76,4 +76,26 @@ jobs:
             linux/dist/DeepSeek-*.AppImage
             linux/dist/DeepSeek-*.tar.gz
             linux/dist/DeepSeek-*.deb
+            linux/dist/DeepSeek-*.rpm
           if-no-files-found: error
+
+  smoke-rpm:
+    needs: build
+    runs-on: ubuntu-latest
+    container: fedora:41
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: DeepSeek-Linux
+          path: dist
+
+      - name: Install rpm and smoke test
+        shell: bash
+        run: |
+          dnf install -y ./dist/DeepSeek-*.rpm
+          grep -q -- '^Exec=.*--ozone-platform=x11' /usr/share/applications/deepseek.desktop
+          rm -rf /tmp/dsh-rpm-smoke
+          DSH_DESKTOP_PORT=3099 DSH_DESKTOP_HOME=/tmp/dsh-rpm-smoke \
+            deepseek --smoke-test --ozone-platform=headless --no-sandbox --disable-gpu | tee /tmp/dsh-rpm-smoke.log
+          grep -q DSH_SMOKE_CLEAN /tmp/dsh-rpm-smoke.log

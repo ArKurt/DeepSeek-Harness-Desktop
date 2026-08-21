@@ -1,8 +1,8 @@
 # Fedora / RPM 测试计划
 
-> 状态：交叉验证已完成（见 `FEDORA-RPM-TESTING-REVIEW.md`）；Fedora 44 上
-> **AppImage / tar.gz 无头冒烟已通过**。下一步落地 `rpm` 打包配置并实装验证。
-> GUI 需在座舱会话（Hyprland/GNOME）手工确认；SSH 侧拉起窗口不稳定，不计入通过。
+> 状态：交叉验证已完成；Fedora 44 上 AppImage / tar.gz / **`.rpm` 无头冒烟均已通过**
+> （2026-08-21）。配置已落地本分支；GUI / SELinux AVC 仍待座舱确认。
+> SSH 侧拉起窗口不稳定，不计入通过。
 
 ## 目标
 
@@ -16,7 +16,7 @@ AppImage / tar.gz 是基线；**.rpm 通过后再**把目标合进 `linux` 与�
 
 | 发行版 | 优先测试项 | 状态 |
 |--------|------------|------|
-| Fedora 44 Workstation（VM `192.168.31.185`） | tar.gz / AppImage 冒烟、GUI、后续 dnf 装 .rpm | 无头冒烟已过；GUI / RPM 待做 |
+| Fedora 44 Workstation（VM `192.168.31.185`） | tar.gz / AppImage 冒烟、GUI、dnf 装 .rpm | 无头：AppImage/tar.gz/rpm 已过；GUI 待座舱 |
 | Fedora 41（CI container 建议固定版） | `dnf install` + packaged smoke | 待 CI |
 | openSUSE | 不承诺；rich deps 理论上可解析 | 非范围 |
 
@@ -30,9 +30,10 @@ AppImage / tar.gz 是基线；**.rpm 通过后再**把目标合进 `linux` 与�
 | 桌面 | Hyprland（COPR）/ GNOME 可选 |
 | 产物来源 | Cachy 本机 `linux/dist`（2026-08-18 构建）scp 至 `~/dsh-artifacts` |
 
-## 0. 定稿配置（审查 + ldd 后）
+## 0. 定稿配置（已落地本分支）
 
-审查报告：`linux/FEDORA-RPM-TESTING-REVIEW.md`。以下为**待落地**内容。
+审查报告：`linux/FEDORA-RPM-TESTING-REVIEW.md`。下列项已写入仓库；CI 在合并到
+`linux`/`main` 或手动 `workflow_dispatch` 后才会跑。
 
 ### 0.1 `linux/package.json`
 
@@ -255,10 +256,11 @@ rpm -qpR ./dist/DeepSeek-1.0.1-x86_64.rpm
 
 打包与收尾：
 
-- [ ] 落地 `package.json` / `build-linux.sh` / README / CI
-- [ ] 本机打出 `.rpm`，`rpm -qpR` 已人工看过
-- [ ] Fedora：`dnf install` + smoke（+ 座舱 GUI / AVC）
-- [ ] CI / Release 资产含 `*.rpm` + Fedora job 安装冒烟
+- [x] 落地 `package.json` / `build-linux.sh` / README / CI
+- [x] 打出 `.rpm`（Fedora 44 上 electron-builder；`rpm -qpR` 仅手写 depends，无自动 soname）
+- [x] Fedora：`dnf install` + smoke（`DSH_SMOKE_READY` + `DSH_SMOKE_CLEAN`；Exec 含 `--ozone-platform=x11`）
+- [ ] 座舱 GUI / AVC 检查
+- [ ] CI / Release 在合并进触发分支后验证 `*.rpm` + `smoke-rpm` job
 
 ---
 

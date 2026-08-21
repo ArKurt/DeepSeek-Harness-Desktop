@@ -19,7 +19,7 @@
 |------|--------|--------|----------|
 | macOS | Swift + SwiftUI + WKWebView | `.dmg`（拖入即装） | Apple Silicon，macOS 15+ |
 | Windows | C# WPF + WebView2 | `.exe` 安装器 / `.zip` 绿色版 | Windows 10/11 x64 |
-| Linux | Electron + 内置 Node/dsh | `.deb` / `.AppImage` / `.tar.gz` / Arch PKGBUILD | Debian / Ubuntu 与 Arch Linux x64；其他主流发行版通常可运行 AppImage |
+| Linux | Electron + 内置 Node/dsh | `.deb` / `.rpm` / `.AppImage` / `.tar.gz` / Arch PKGBUILD | Debian / Ubuntu、Fedora 与 Arch Linux x64；其他主流发行版通常可运行 AppImage |
 
 ## ⬇️ 下载安装
 
@@ -38,20 +38,24 @@
 2. 安装向导：一路 Next 即可；绿色版：解压后双击 `DeepSeek.exe`
 3. 需要系统已安装 **Microsoft Edge WebView2 Runtime**（Windows 10/11 一般已自带）
 
-### Linux（Debian / Ubuntu / Arch）
+### Linux（Debian / Ubuntu / Fedora / Arch）
 
 1. Debian / Ubuntu 推荐用 `.deb`：
    ```bash
    sudo apt install -y ./DeepSeek-1.0.1-amd64.deb
    ```
-2. Arch Linux 推荐 AppImage 一键安装或 `linux/arch/PKGBUILD`：
+2. Fedora 推荐用 `.rpm`：
+   ```bash
+   sudo dnf install -y ./DeepSeek-1.0.1-x86_64.rpm
+   ```
+3. Arch Linux 推荐 AppImage 一键安装或 `linux/arch/PKGBUILD`：
    ```bash
    cd linux && ./install-linux.sh
    # 或
    cd linux/arch && makepkg -si
    ```
-3. 绿色版：解压 `DeepSeek-1.0.1-x64.tar.gz` 后运行其中的 `deepseek`
-4. Linux 版说明详见 [linux/README.md](linux/README.md)
+4. 绿色版：解压 `DeepSeek-1.0.1-x64.tar.gz` 后运行其中的 `deepseek`
+5. Linux 版说明详见 [linux/README.md](linux/README.md)
 
 ## 🚀 使用
 

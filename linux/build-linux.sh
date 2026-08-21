@@ -3,7 +3,7 @@
 # DeepSeek Desktop — Linux 版构建脚本
 #
 # 用法：
-#   ./build-linux.sh                    # 组装 runtime + 打 AppImage/tar.gz/deb
+#   ./build-linux.sh                    # 组装 runtime + 打 AppImage/tar.gz/deb/rpm
 #   ./build-linux.sh --runtime-only     # 只组装 runtime（开发/Arch PKGBUILD 用）
 #   ./build-linux.sh --system-node      # 用系统 node 构建/运行（Arch 包推荐）
 #   ./build-linux.sh --node /path/node  # 指定 Node 二进制（会复制进 runtime）
@@ -262,9 +262,9 @@ if [ "$DO_ELECTRON" = "1" ]; then
     npm install --no-audit --no-fund
   fi
 
-  echo "==> 打包 AppImage + tar.gz + deb"
+  echo "==> 打包 AppImage + tar.gz + deb + rpm"
   rm -rf "$DIST_DIR"
-  npx electron-builder --linux AppImage tar.gz deb
+  npx electron-builder --linux AppImage tar.gz deb rpm
   echo "构建完成："
   ls -lh "$DIST_DIR"
 else

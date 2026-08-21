@@ -24,7 +24,10 @@ Chromium 窗口承载 Web UI。开发与测试环境为 **Arch Linux**。
 | `DeepSeek-1.0.1-x86_64.AppImage` | 开箱即用 AppImage（内置 Electron + Node + dsh） |
 | `DeepSeek-1.0.1-x64.tar.gz` | 解压后运行 `./deepseek` 的绿色版 |
 | `DeepSeek-1.0.1-amd64.deb` | Debian / Ubuntu 系统包，apt 安装后生成菜单项 |
+| `DeepSeek-1.0.1-x86_64.rpm` | Fedora 系统包，dnf 安装后生成菜单项 |
 | Arch PKGBUILD | Arch Linux 系统包，使用系统 electron + nodejs |
+
+openSUSE 未经测试；rpm 依赖理论上可解析，遇到问题请提 issue。
 
 GitHub Actions 产物与 Release 中文件名以实际构建为准。
 
@@ -38,7 +41,7 @@ cd linux
 # 2. 本机开发运行（使用系统 electron）
 DSH_DESKTOP_DEV=1 electron --ozone-platform=x11 .
 
-# 3. 打 AppImage + tar.gz + deb（需要网络下载 Electron）
+# 3. 打 AppImage + tar.gz + deb + rpm（需要网络下载 Electron；rpm 需本机 rpmbuild）
 ./build-linux.sh --skip-runtime
 ```
 
@@ -71,6 +74,13 @@ cd linux
 
 ```bash
 sudo apt install -y ./dist/DeepSeek-1.0.1-amd64.deb
+# 安装后可执行：deepseek，或从应用菜单打开 DeepSeek
+```
+
+### Fedora 安装
+
+```bash
+sudo dnf install -y ./dist/DeepSeek-1.0.1-x86_64.rpm
 # 安装后可执行：deepseek，或从应用菜单打开 DeepSeek
 ```
 

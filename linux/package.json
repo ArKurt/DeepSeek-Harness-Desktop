@@ -10,7 +10,7 @@
   "homepage": "https://github.com/ArKurt/DeepSeek-Harness-Desktop",
   "scripts": {
     "start": "DSH_DESKTOP_DEV=1 electron --ozone-platform=x11 .",
-    "dist": "electron-builder --linux AppImage tar.gz deb",
+    "dist": "electron-builder --linux AppImage tar.gz deb rpm",
     "pack": "electron-builder --dir",
     "smoke": "node test/server-manager.test.js",
     "test": "node test/window-state.test.js && node test/server-crash.test.js"
@@ -58,6 +58,12 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icons",
@@ -79,11 +85,24 @@
         "libgbm1",
         "libnotify4",
         "libnss3",
-        "libxss1",
         "libxtst6",
         "xdg-utils",
         "libuuid1",
         "libsecret-1-0"
+      ]
+    },
+    "rpm": {
+      "depends": [
+        "gtk3",
+        "libnotify",
+        "nss",
+        "xdg-utils",
+        "at-spi2-core",
+        "(libXtst or libXtst6)",
+        "(libuuid or libuuid1)",
+        "(libsecret or libsecret-1-0)",
+        "(mesa-libgbm or libgbm1)",
+        "(alsa-lib or libasound2)"
       ]
     }
   },
