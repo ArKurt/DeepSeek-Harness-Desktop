@@ -181,15 +181,20 @@ PKG
     echo "错误：dsh bundle 安装失败"
     exit 1
   fi
-  if [ ! -f "$BUNDLE_DIR/node_modules/node-pty/build/Release/pty.node" ]; then
-    echo "错误：node-pty 原生模块未编译成功（Linux 必须本地编译）"
+  # node-pty 的原生模块可能来自本地编译（build/Release/pty.node），也可能来自
+  # 包内自带的预编译产物（prebuilds/<platform>-<arch>/pty.node，新版 node-pty 默认）。
+  # 两者任一存在即视为可用。
+  NODE_PTY_DIR="$BUNDLE_DIR/node_modules/node-pty"
+  if [ ! -f "$NODE_PTY_DIR/build/Release/pty.node" ] \
+     && ! ls "$NODE_PTY_DIR"/prebuilds/linux-*/pty.node >/dev/null 2>&1; then
+    echo "错误：node-pty 原生模块不可用（既无本地编译产物也无预编译产物）"
     exit 1
   fi
 
   # 只保留编译产物，删除含构建机绝对路径的 Makefile/中间文件。
-  find "$BUNDLE_DIR/node_modules/node-pty/build" -type f \
+  find "$NODE_PTY_DIR/build" -type f \
     ! -path '*/Release/pty.node' -delete 2>/dev/null || true
-  find "$BUNDLE_DIR/node_modules/node-pty/build" -depth -type d -empty -delete 2>/dev/null || true
+  find "$NODE_PTY_DIR/build" -depth -type d -empty -delete 2>/dev/null || true
 
   echo "==> 生成完整性清单"
   {
