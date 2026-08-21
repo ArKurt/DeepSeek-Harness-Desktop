@@ -1,8 +1,8 @@
 # Fedora / RPM 测试计划
 
-> 状态：交叉验证已完成；Fedora 44 上 AppImage / tar.gz / **`.rpm` 无头冒烟均已通过**
-> （2026-08-21）。配置已落地本分支；GUI / SELinux AVC 仍待座舱确认。
-> SSH 侧拉起窗口不稳定，不计入通过。
+> 状态：交叉验证已完成；Fedora 44 上 AppImage / tar.gz / **`.rpm` 无头冒烟与座舱 GUI
+> 均已通过**（2026-08-21）；SELinux enforcing 下 `ausearch` **无 AVC 拒绝**。
+> 配置已落地本分支。CI 待合并进触发分支后验证。
 
 ## 目标
 
@@ -16,7 +16,7 @@ AppImage / tar.gz 是基线；**.rpm 通过后再**把目标合进 `linux` 与�
 
 | 发行版 | 优先测试项 | 状态 |
 |--------|------------|------|
-| Fedora 44 Workstation（VM `192.168.31.185`） | tar.gz / AppImage 冒烟、GUI、dnf 装 .rpm | 无头：AppImage/tar.gz/rpm 已过；GUI 待座舱 |
+| Fedora 44 Workstation（VM `192.168.31.185`） | tar.gz / AppImage 冒烟、GUI、dnf 装 .rpm | 全部通过（含座舱 GUI；无 AVC） |
 | Fedora 41（CI container 建议固定版） | `dnf install` + packaged smoke | 待 CI |
 | openSUSE | 不承诺；rich deps 理论上可解析 | 非范围 |
 
@@ -173,7 +173,7 @@ APPIMAGE_EXTRACT_AND_RUN=1 \
 - stdout 含 `DSH_SMOKE_CLEAN`
 - 退出码 `0`（仅退出码不够：单实例锁命中时也会返回 0）
 
-## 4. GUI 实机 — 待座舱确认
+## 4. GUI 实机 — 已通过（座舱）
 
 在 **图形会话本机终端**（非纯 SSH）执行：
 
@@ -189,8 +189,8 @@ DSH_DESKTOP_HOME=/tmp/dsh-fedora-gui ./deepseek --ozone-platform=x11
 4. 端口已被占用时复用、退出不杀外来服务，属预期。
 5. 记录会话：Hyprland / GNOME；是否需 `--ozone-platform=x11`。
 
-> 2026-08-21：从 Cachy SSH 注入 `DISPLAY=:0` / Hyprland 环境尝试拉窗，进程能起来但
-> `hyprctl` 未见客户端，不作为通过证据。请在 VM 座舱内点一次。
+**结果（2026-08-21）：** 用户在 Fedora 44 座舱已跑通；`ausearch -m AVC -ts recent`
+无 deepseek 相关拒绝。早期从 Cachy SSH 注入显示环境拉窗不稳定，不作为证据。
 
 ## 5. 安装 .rpm（配置落地并打出包之后）
 
@@ -252,14 +252,14 @@ rpm -qpR ./dist/DeepSeek-1.0.1-x86_64.rpm
 - [x] Fedora VM：`os-release` + glibc 已记录（44 / 2.43）
 - [x] tar.gz：`DSH_SMOKE_READY` + `DSH_SMOKE_CLEAN`
 - [x] AppImage：同上（FUSE 直跑）
-- [ ] GUI：§4 座舱检查点
+- [x] GUI：§4 座舱检查点
 
 打包与收尾：
 
 - [x] 落地 `package.json` / `build-linux.sh` / README / CI
 - [x] 打出 `.rpm`（Fedora 44 上 electron-builder；`rpm -qpR` 仅手写 depends，无自动 soname）
 - [x] Fedora：`dnf install` + smoke（`DSH_SMOKE_READY` + `DSH_SMOKE_CLEAN`；Exec 含 `--ozone-platform=x11`）
-- [ ] 座舱 GUI / AVC 检查
+- [x] 座舱 GUI / AVC 检查（无 AVC 拒绝）
 - [ ] CI / Release 在合并进触发分支后验证 `*.rpm` + `smoke-rpm` job
 
 ---
