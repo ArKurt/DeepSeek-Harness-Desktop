@@ -189,8 +189,15 @@ DSH_DESKTOP_HOME=/tmp/dsh-fedora-gui ./deepseek --ozone-platform=x11
 4. 端口已被占用时复用、退出不杀外来服务，属预期。
 5. 记录会话：Hyprland / GNOME；是否需 `--ozone-platform=x11`。
 
-**结果（2026-08-21）：** 用户在 Fedora 44 座舱已跑通；`ausearch -m AVC -ts recent`
-无 deepseek 相关拒绝。早期从 Cachy SSH 注入显示环境拉窗不稳定，不作为证据。
+**结果（2026-08-21）：**
+
+- 座舱 GUI 已通过；关窗后可再开；`ausearch` 无 deepseek AVC。
+- **Hyprland 0.56.2：** 包默认 `--ozone-platform=x11` 会起进程但不出窗；改为
+  `--ozone-platform=wayland` 后正常。用户级覆盖已写在
+  `~/.local/share/applications/deepseek.desktop`（不改系统 rpm）。
+- SSH / 无 `$DISPLAY`/`$WAYLAND_DISPLAY` 的终端会直接报 Missing X / Wayland 并可能
+  coredump，不能当 GUI 失败证据。
+- GNOME 会话本次未完成对照（登录异常，暂搁）。
 
 ## 5. 安装 .rpm（配置落地并打出包之后）
 
